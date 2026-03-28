@@ -1,0 +1,31 @@
+# Environments
+dr-env/
+venv/
+env/
+.env
+
+# Datasets & Data
+aptos/
+messidor-2/
+data/
+*.csv
+*.zip
+
+# PyTorch/Model weights
+outputs/checkpoints/
+*.pth
+*.pt
+*.weights
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# OS generated files
+.DS_Store
+Thumbs.db
