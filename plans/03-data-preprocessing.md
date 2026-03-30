@@ -4,7 +4,7 @@
 > **Created**: 2026-03-30
 > **Updated**: 2026-03-30
 > **Scope**: Offline preprocessing pipeline for APTOS and Messidor-2 datasets
-> **Status**: ✅ Phases 1-3 COMPLETED | ⚠️ Phase 4 (Integration) NOT IMPLEMENTED
+> **Status**: ✅ ALL PHASES COMPLETED (1-4)
 
 ---
 
@@ -283,27 +283,31 @@ class DRDataset(Dataset):
   - [x] Create side-by-side before/after grid
   - [x] Save to `outputs/figures/preprocessing_*.png`
 
-### Phase 4: Integration ⚠️ NOT IMPLEMENTED (Deferred)
+### Phase 4: Integration ✅ COMPLETED
 
-- [ ] **4.1** Update config.py
-  - [ ] Add `APTOS_PROCESSED_DIR = PROCESSED_DIR / "aptos"`
-  - [ ] Add `MESSIDOR_PROCESSED_DIR = PROCESSED_DIR / "messidor2"`
-  - [ ] Add `USE_PREPROCESSED_CACHE = True` flag
+- [x] **4.1** Update config.py
+  - [x] Add `APTOS_PROCESSED_DIR = PROCESSED_DIR / "aptos"`
+  - [x] Add `MESSIDOR_PROCESSED_DIR = PROCESSED_DIR / "messidor2"`
+  - [x] Add `USE_PREPROCESSED_CACHE = True` flag
 
-- [ ] **4.2** Update `DRDataset` class
-  - [ ] Add `use_cache: bool` parameter
-  - [ ] Add `cache_dir: str | None` parameter
-  - [ ] Load from cache when enabled
+- [x] **4.2** Update `DRDataset` class
+  - [x] Add `use_cache: bool` parameter
+  - [x] Add `cache_dir: Path | None` parameter
+  - [x] Load from cache when enabled, fall back to on-the-fly if cache file missing
 
-- [ ] **4.3** Update `MessidorDataset` class
-  - [ ] Add `use_cache: bool` parameter
-  - [ ] Load from cache when enabled
+- [x] **4.3** Update `MessidorDataset` class
+  - [x] Add `use_cache: bool` parameter
+  - [x] Add `cache_dir: Path | None` parameter
+  - [x] Load from cache when enabled, fall back to on-the-fly if cache file missing
 
-- [ ] **4.4** Update `train.py`
-  - [ ] Add `--use_cache` CLI argument
-  - [ ] Pass cache directory to dataloaders
+- [x] **4.4** Update `train.py`
+  - [x] Add `--use_cache` CLI argument (default=`USE_PREPROCESSED_CACHE`)
+  - [x] Pass `use_cache` and `cache_dir` to `create_dataloaders()`
+  - [x] Auto-detect cache dir existence before enabling
 
-**⚠️ IMPORTANT:** Until Phase 4 is implemented, the training pipeline will continue to apply Ben Graham preprocessing on-the-fly during training, despite preprocessed images being available in `data/processed/`.
+- [x] **4.5** Update `create_dataloaders()` and `create_messidor_dataloader()` factory functions
+  - [x] Accept `use_cache` and `cache_dir` parameters
+  - [x] Forward to `DRDataset` / `MessidorDataset` constructors
 
 ---
 
@@ -378,9 +382,9 @@ cat data/processed/preprocessing_report.json
 |------|-------------|--------|-------------|
 | `src/preprocess_data.py` | **New** | ✅ DONE | Offline preprocessing script with parallel processing |
 | `src/preprocessing.py` | Modify | ⚠️ PARTIAL | Fallback tracking implemented in `preprocess_data.py` instead |
-| `src/config.py` | Modify | ❌ TODO | Add cache paths (Phase 4 - deferred) |
-| `src/dataset.py` | Modify | ❌ TODO | Add cache support (Phase 4 - deferred) |
-| `src/train.py` | Modify | ❌ TODO | Add `--use_cache` argument (Phase 4 - deferred) |
+| `src/config.py` | Modify | ✅ DONE | Added `APTOS_PROCESSED_DIR`, `MESSIDOR_PROCESSED_DIR`, `USE_PREPROCESSED_CACHE` |
+| `src/dataset.py` | Modify | ✅ DONE | Added `use_cache`/`cache_dir` to both Dataset classes + factory functions |
+| `src/train.py` | Modify | ✅ DONE | Added `--use_cache` CLI arg, wired cache into dataloaders |
 
 ---
 
@@ -392,17 +396,21 @@ cat data/processed/preprocessing_report.json
 python src/preprocess_data.py --visualize
 ```
 
-**To use preprocessed images in training (Phase 4 required):**
+**Training with preprocessed cache (default — enabled via `USE_PREPROCESSED_CACHE = True`):**
 ```bash
-# NOT YET IMPLEMENTED - requires Phase 4 integration
-python src/train.py --use_cache
+python src/train.py --model cbam --epochs 20 --fold 0
+```
+
+**Training WITHOUT cache (on-the-fly preprocessing):**
+```bash
+python src/train.py --model cbam --epochs 20 --fold 0 --no-use_cache
 ```
 
 **Current training behavior:**
-- Training still uses on-the-fly preprocessing via `ben_graham_preprocess()`
-- Preprocessed images exist in `data/processed/` but are not used
-- To enable cached preprocessing, implement Phase 4 integration tasks
+- ✅ Training loads preprocessed images from `data/processed/aptos/` by default
+- ✅ Falls back to on-the-fly preprocessing if cached file is missing
+- ✅ `--use_cache` flag defaults to `True` (controlled by `USE_PREPROCESSED_CACHE` in config)
 
 ---
 
-*Document updated: 2026-03-30 (v1.2)*
+*Document updated: 2026-03-31 (v1.3 — Phase 4 integration completed)*

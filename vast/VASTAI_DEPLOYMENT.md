@@ -1,523 +1,446 @@
-# Vast.ai Deployment Guide - DR Detection
+# Vast.ai Deployment Guide — Phase 1 GPU Training
 
-Hướng dẫn đầy đủ để deploy và train model trên Vast.ai với GPU.
-
----
-
-## 📋 Preparation Steps (On Local Machine)
-
-### 1. Compress Data for Upload
-
-```bash
-# Activate environment first
-dr-env\Scripts\activate.bat
-
-# Run preparation script
-python prepare_upload.py
-```
-
-Script này sẽ tạo:
-
-- `dr-detect-src.tar.gz` - Source code (~5-10 MB)
-- `aptos-data.tar.gz` - APTOS dataset (~1-2 GB)
-- `upload_manifest.json` - File checksums và instructions
-
-### 2. Upload to Cloud Storage
-
-**Option A: Google Drive** (Recommended)
-
-1. Upload cả 2 file `.tar.gz` lên Google Drive
-2. Share files với quyền "Anyone with the link can view"
-3. Lấy direct download links:
-   - Vào https://sites.google.com/site/gdocs2direct/
-   - Paste Google Drive links
-   - Copy direct download links
-
-**Option B: Kaggle Datasets**
-
-1. Upload lên Kaggle Datasets
-2. Make dataset public
-3. Use download API links
-
-**Option C: Dropbox/OneDrive**
-
-- Similar process, get direct download links
-
-### 3. Note Down URLs
-
-Bạn sẽ cần 2 URLs:
-
-```
-DATA_URL=https://...../aptos-data.tar.gz
-SRC_URL=https://...../dr-detect-src.tar.gz
-```
+> **Purpose**: Train `baseline_resnet50` and `cbam_resnet50` on Vast.ai GPU.
+> **Last Updated**: 2026-03-31
+> **Interface**: Vast.ai Web Terminal (no SSH needed)
+> **Source Code**: GitHub → `git clone`
+> **Data**: Google Drive → `gdown`
 
 ---
 
-## 🚀 Vast.ai Instance Setup
+## Prerequisites
 
-### 1. Rent GPU Instance
+Before starting, make sure:
 
-1. Vào https://vast.ai/
-2. Search for instance:
-   - **GPU**: RTX 3060/3070/4070 (8-12 GB VRAM đủ)
-   - **Disk Space**: ≥ 20 GB
-   - **Template**: PyTorch (hoặc custom PyTorch 2.0+)
-   - **Price**: $0.15 - $0.30/hour
+- [x] Phase 0 + Phase 1 CPU smoke tests passed
+- [ ] **Latest code is pushed to GitHub** (including the `dataset.py` augmentation fix!)
+- [x] Datasets uploaded to Google Drive (`data_dr/` folder, shared)
 
-3. Launch instance với:
-   ```
-   Image: pytorch/pytorch:2.0.0-cuda11.7-cudnn8-runtime
-   ```
-
-### 2. Connect to Instance
-
-Sau khi instance ready, connect qua SSH:
-
-```bash
-ssh -p <port> root@<instance-ip>
-```
-
-Hoặc dùng Vast.ai web terminal.
-
-### 3. Run Setup Script
-
-```bash
-# Download setup script
-wget https://raw.githubusercontent.com/YOUR_REPO/setup_vastai.sh
-
-# Make executable
-chmod +x setup_vastai.sh
-
-# Run setup with your URLs
-bash setup_vastai.sh <DATA_URL> <SRC_URL>
-```
-
-**Example:**
-
-```bash
-bash setup_vastai.sh \
-  "https://drive.google.com/uc?id=XXX&export=download" \
-  "https://drive.google.com/uc?id=YYY&export=download"
-```
-
-Setup script sẽ:
-
-- ✓ Update system packages
-- ✓ Download và extract data
-- ✓ Download và extract source code
-- ✓ Install Python dependencies
-- ✓ Verify GPU availability
-- ✓ Create output directories
+> **IMPORTANT**: Before renting a Vast.ai instance, push your latest code:
+> ```powershell
+> cd C:\Projects\dr-detect
+> git add -A
+> git commit -m "Phase 1: fix augmentation API + ready for GPU training"
+> git push origin main
+> ```
 
 ---
 
-## 🏋️ Training
+## STEP 1: Rent a Vast.ai Instance
 
-### Option 1: Use Training Script (Recommended)
+1. Go to [https://cloud.vast.ai/](https://cloud.vast.ai/)
+2. Filter instances:
+   - **GPU**: RTX 3060 / 3070 / 4070 / 3080 (8–12 GB VRAM)
+   - **Disk**: ≥ 30 GB
+   - **Docker Image**: `pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime` (or latest)
+3. Click **RENT**
+4. Wait for instance to start (~1–2 minutes)
+5. Click the **terminal icon** to open the **Web Terminal**
+
+---
+
+## STEP 2: Clone Source Code from GitHub
+
+```bash
+cd /workspace
+git clone https://github.com/khanhmay004/dr-detect.git
+cd dr-detect
+```
+
+Verify source code:
+
+```bash
+ls src/
+# Expected: config.py  configs/  dataset.py  evaluate.py  loss.py  model.py  preprocessing.py  train.py
+```
+
+---
+
+## STEP 3: Download Data from Google Drive
+
+### 3.1 Install gdown
+
+```bash
+pip install gdown
+```
+
+### 3.2 Share your Google Drive folder
+
+Make sure your `data_dr` folder is shared:
+- Right-click `data_dr` → **Share** → **"Anyone with the link"** → **Viewer**
+- Copy the folder link
+
+### 3.3 Download datasets
 
 ```bash
 cd /workspace/dr-detect
 
-# Download training script
-wget https://raw.githubusercontent.com/YOUR_REPO/run_training.sh
-chmod +x run_training.sh
-
-# Run training (ResNet50, 20 epochs, fold 0)
-bash run_training.sh resnet50 20 0
-
-# For EfficientNet
-bash run_training.sh efficientnet_b0 20 0
+# Download the entire data_dr folder from Google Drive
+# Replace <FOLDER_ID> with the ID from your Google Drive link
+# Example: if link is https://drive.google.com/drive/folders/1aBcDeFgHiJk
+# then FOLDER_ID = 1aBcDeFgHiJk
+gdown --folder "https://drive.google.com/drive/folders/<FOLDER_ID>" -O /workspace/dr-detect/data_dr
 ```
 
-### Option 2: Manual Training
+### 3.4 Extract and arrange datasets
+
+Your Drive has `aptos2019-blindness-detection` (zip) and `messidor-2.rar`:
+
+```bash
+# Install extraction tools
+apt-get update && apt-get install -y unzip unrar
+
+# --- APTOS dataset ---
+cd /workspace/dr-detect
+mkdir -p aptos
+# If it downloaded as a zip file:
+unzip data_dr/aptos2019-blindness-*.zip -d aptos/
+# If it downloaded as a folder, move it:
+# mv data_dr/aptos2019-blindness-detection aptos/
+
+# --- Messidor-2 dataset ---
+mkdir -p messidor-2
+unrar x data_dr/messidor-2.rar messidor-2/
+
+# --- Cleanup to free disk space ---
+rm -rf data_dr/
+```
+
+### 3.5 Verify directory structure
+
+```bash
+echo "=== APTOS ==="
+ls aptos/aptos2019-blindness-detection/
+# Expected: train.csv  train_images/  test.csv  ...
+
+echo "=== APTOS image count ==="
+ls aptos/aptos2019-blindness-detection/train_images/ | wc -l
+# Expected: 3662
+
+echo "=== Messidor-2 ==="
+ls messidor-2/
+# Expected: IMAGES/  messidor-2.csv  ...
+
+echo "=== Messidor-2 image count ==="
+ls messidor-2/IMAGES/ | wc -l
+# Expected: 1744 or similar
+
+echo "=== Disk space ==="
+df -h /workspace/
+```
+
+---
+
+## STEP 4: Install Python Dependencies
+
+> **No `venv` or `conda activate` needed!** On Vast.ai, you're already inside a
+> Docker container (`pytorch/pytorch:...`) which acts as the isolated environment.
+> Everything you `pip install` goes into the container's Python directly.
+> This is different from your local Windows setup where you use `dr-env\Scripts\activate.bat`.
+
+```bash
+cd /workspace/dr-detect
+pip install -r requirements.txt
+```
+
+> `torch` and `torchvision` are pre-installed in the PyTorch Docker image.
+> This just adds `albumentations`, `scikit-learn`, `tqdm`, `pyyaml`, etc.
+
+---
+
+## STEP 5: Verify GPU Setup
+
+```bash
+python -c "
+import torch
+print(f'PyTorch:     {torch.__version__}')
+print(f'CUDA avail:  {torch.cuda.is_available()}')
+if torch.cuda.is_available():
+    print(f'GPU:         {torch.cuda.get_device_name(0)}')
+    vram = torch.cuda.get_device_properties(0).total_mem / 1e9
+    print(f'VRAM:        {vram:.1f} GB')
+"
+```
+
+Expected:
+```
+PyTorch:     2.x.x
+CUDA avail:  True
+GPU:         NVIDIA GeForce RTX 3070
+VRAM:        8.0 GB
+```
+
+If CUDA is False:
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+```
+
+---
+
+## STEP 6: Train Baseline Model (Phase 1)
+
+### 6.1 Run training
 
 ```bash
 cd /workspace/dr-detect
 
-# Train ResNet50
-python src/train.py --model resnet50 --epochs 20 --fold 0
+# Baseline ResNet-50: 20 epochs, fold 0, batch=16, AMP on
+python src/train.py \
+    --model baseline \
+    --epochs 20 \
+    --batch_size 16 \
+    --fold 0 \
+    2>&1 | tee training_baseline_fold0.log
+```
 
-# After training, evaluate
+> `tee` saves output to a log file AND prints it to the terminal.
+
+### 6.2 If you need to close the browser tab
+
+Use `nohup` so training continues even if the web terminal disconnects:
+
+```bash
+cd /workspace/dr-detect
+
+nohup python src/train.py \
+    --model baseline \
+    --epochs 20 \
+    --batch_size 16 \
+    --fold 0 \
+    > training_baseline_fold0.log 2>&1 &
+
+# Check it's running
+ps aux | grep train.py
+```
+
+Reconnect later and check progress:
+
+```bash
+tail -30 /workspace/dr-detect/training_baseline_fold0.log
+```
+
+### 6.3 Monitor GPU usage
+
+Open a second terminal tab on Vast.ai (if available), or check periodically:
+
+```bash
+nvidia-smi
+```
+
+### 6.4 Expected timeline
+
+| GPU | Per Epoch | 20 Epochs | Cost |
+|-----|-----------|-----------|------|
+| RTX 3060 | ~12–15 min | ~4–5 hrs | ~$0.60–$1.50 |
+| RTX 3070 | ~8–12 min | ~3–4 hrs | ~$0.45–$1.20 |
+| RTX 4070 | ~6–8 min | ~2–3 hrs | ~$0.30–$0.90 |
+
+### 6.5 Expected final metrics
+
+| Metric | Expected Range |
+|--------|---------------|
+| Best Val QWK | 0.75 – 0.85 |
+| Best Val AUC | 0.85 – 0.95 |
+| Best Val Acc | 0.72 – 0.80 |
+
+---
+
+## STEP 7: Train CBAM Model (Optional — Same Session)
+
+If you have time and budget, train CBAM in the same session:
+
+```bash
+cd /workspace/dr-detect
+
+python src/train.py \
+    --model cbam \
+    --epochs 20 \
+    --batch_size 16 \
+    --fold 0 \
+    2>&1 | tee training_cbam_fold0.log
+```
+
+---
+
+## STEP 8: Run Messidor-2 Evaluation
+
+After training completes:
+
+```bash
+cd /workspace/dr-detect
+
 python src/evaluate.py \
-  --checkpoint outputs/checkpoints/resnet50_fold0_best.pth \
-  --model resnet50 \
-  --fold 0
+    --checkpoint outputs/checkpoints/baseline_resnet50_fold0_best.pth \
+    --model baseline \
+    --batch_size 16 \
+    --mc_passes 20
 ```
 
 ---
 
-## 📊 Monitoring Training
+## STEP 9: Download Results
 
-### View Live Progress
-
-```bash
-# Monitor training log
-tail -f training_resnet50_fold0.log
-
-# Check GPU usage
-watch -n 1 nvidia-smi
-```
-
-### Expected Timeline on GPU
-
-- **RTX 3060/3070**: ~10-15 minutes per epoch
-- **Total for 20 epochs**: ~3-5 hours
-- **Cost estimate**: $0.75 - $1.50
-
----
-
-## 💾 Download Results
-
-### After Training Completes
+### Option A: Upload to Google Drive via rclone (Recommended)
 
 ```bash
-# On your local machine, download results:
-scp -P <port> -r root@<instance-ip>:/workspace/dr-detect/outputs ./vastai_results
+# Install rclone
+curl https://rclone.org/install.sh | sudo bash
 
-# Or download specific files:
-scp -P <port> root@<instance-ip>:/workspace/dr-detect/outputs/checkpoints/resnet50_fold0_best.pth ./
-scp -P <port> root@<instance-ip>:/workspace/dr-detect/outputs/results/resnet50_fold0_metrics.json ./
+# Configure Google Drive
+rclone config
+# → n (New remote)
+# → Name: gdrive
+# → Storage: 22 (Google Drive)
+# → Enter (skip Client ID)
+# → Enter (skip Client Secret)
+# → Scope: 1 (Full access)
+# → Enter (skip root folder)
+# → Enter (skip service account)
+# → Advanced config: n
+# → Auto config: n (headless server!)
 ```
 
-### Files to Download
+It will print a command like `rclone authorize "drive" "eyJ..."`.
+**Run that command on your Windows machine** (if you have rclone installed),
+or go to the URL it gives you, login, and paste the token back.
+
+Then upload:
+
+```bash
+# Package results first
+cd /workspace/dr-detect
+tar -czf /workspace/dr-results.tar.gz \
+    outputs/ \
+    training_baseline_fold0.log \
+    training_cbam_fold0.log 2>/dev/null
+
+# Upload to Google Drive
+rclone copy /workspace/dr-results.tar.gz gdrive:DR-Detect-Results -P
+```
+
+### Option B: Download via SCP (from Windows PowerShell)
+
+If you need to use SCP, get the SSH details from Vast.ai dashboard:
+
+```powershell
+scp -P <PORT> -i "C:\Users\ADMIN\.ssh\id_ed25519" ^
+    root@<IP>:/workspace/dr-results.tar.gz ^
+    "C:\Projects\dr-detect\outputs\vastai-results.tar.gz"
+```
+
+### Files you'll get
 
 ```
 outputs/
 ├── checkpoints/
-│   └── resnet50_fold0_best.pth         # Trained model
-├── results/
-│   └── resnet50_fold0_metrics.json     # Metrics
-├── figures/
-│   ├── resnet50_fold0_confusion_matrix.png
-│   └── resnet50_fold0_roc_curve.png
-└── logs/
-    └── resnet50_fold0_history.json     # Training history
+│   ├── baseline_resnet50_fold0_best.pth     # Best model (~95 MB)
+│   └── baseline_resnet50_fold0_last.pth     # Last epoch checkpoint
+├── logs/
+│   └── baseline_resnet50_fold0_history.json # Training curves
+├── results/                                  # (from evaluate.py)
+│   └── messidor2_*.csv / .json
+└── figures/                                  # (from evaluate.py)
+    └── *.png
 ```
 
 ---
 
-## 🔧 Troubleshooting
+## STEP 10: Destroy the Instance
 
-### Out of Memory Error
+> **CRITICAL**: Stop billing immediately after downloading results!
 
-Reduce batch size in `src/config.py`:
+On the Vast.ai dashboard → click **Destroy** on your instance.
 
-```python
-BATCH_SIZE = 8  # Instead of 16
-```
+---
 
-### Slow Download Speed
+## Troubleshooting
 
-Upload data to a faster CDN:
-
-- Use Kaggle Datasets API
-- Use AWS S3 with public access
-- Use transfer.sh for temporary storage
-
-### CUDA Not Available
-
-Verify PyTorch installation:
+### CUDA Out of Memory
 
 ```bash
-python -c "import torch; print(torch.cuda.is_available())"
+# Reduce batch size from 16 to 8
+python src/train.py --model baseline --epochs 20 --batch_size 8 --fold 0
 ```
 
-If false, reinstall PyTorch with CUDA:
+### gdown Rate Limit / Fails for Large Files
 
 ```bash
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+# Try with --fuzzy
+gdown --fuzzy "https://drive.google.com/file/d/<FILE_ID>/view"
+
+# Or download individual files by file ID
+gdown "<FILE_ID>" -O filename.zip
+```
+
+### Training Disconnected
+
+If you used `nohup`, training keeps running. Check:
+
+```bash
+ps aux | grep train.py          # Is it still running?
+tail -20 training_baseline_fold0.log  # Check latest output
+```
+
+### Wrong Directory Structure
+
+If paths don't match, check what `config.py` expects:
+
+```bash
+python -c "
+from src.config import APTOS_TRAIN_CSV, APTOS_TRAIN_IMAGES, MESSIDOR_CSV, MESSIDOR_IMAGES
+print(f'APTOS CSV:    {APTOS_TRAIN_CSV}  exists={APTOS_TRAIN_CSV.exists()}')
+print(f'APTOS images: {APTOS_TRAIN_IMAGES}  exists={APTOS_TRAIN_IMAGES.exists()}')
+print(f'Messidor CSV: {MESSIDOR_CSV}  exists={MESSIDOR_CSV.exists()}')
+print(f'Messidor img: {MESSIDOR_IMAGES}  exists={MESSIDOR_IMAGES.exists()}')
+"
+```
+
+Expected paths (relative to project root):
+```
+aptos/aptos2019-blindness-detection/train.csv
+aptos/aptos2019-blindness-detection/train_images/
+messidor-2/messidor-2.csv
+messidor-2/IMAGES/
 ```
 
 ---
 
-## 💰 Cost Optimization
-
-### Training trên tất cả 5 folds
+## Quick Reference (Copy-Paste Block)
 
 ```bash
-# Run all folds sequentially
-for fold in 0 1 2 3 4; do
-  bash run_training.sh resnet50 20 $fold
-done
-```
+# === ON VAST.AI WEB TERMINAL ===
 
-**Estimated total cost**: ~$5-7 for complete 5-fold CV
+# 1. Clone code
+cd /workspace
+git clone https://github.com/khanhmay004/dr-detect.git
+cd dr-detect
 
-### Stop Instance After Training
-
-```bash
-# On Vast.ai dashboard, destroy instance to stop billing
-# Or use API:
-vastai destroy instance <instance-id>
-```
-
----
-
-## 📝 Quick Reference
-
-### Prepare Data (Local)
-
-```bash
-python prepare_upload.py
-# Upload .tar.gz files to cloud
-```
-
-### Setup Vast.ai
-
-```bash
-bash setup_vastai.sh <DATA_URL> <SRC_URL>
-```
-
-### Train Model
-
-```bash
-bash run_training.sh resnet50 20 0
-```
-
-### Download Results (Local)
-
-```bash
-scp -P <port> -r root@<ip>:/workspace/dr-detect/outputs ./results
-```
-
----
-
-## 🎯 Expected Results
-
-Sau khi training xong, bạn sẽ có:
-
-- **Validation Kappa**: 0.70 - 0.85 (good baseline)
-- **Validation Accuracy**: 75% - 85%
-- **Binary Referable AUC**: 0.88 - 0.93
-- **Training time**: 3-5 hours trên RTX 3060/3070
-- **Total cost**: ~$1-2 cho 1 fold
-
----
-
-## Next Steps After Training
-
-1. Download tất cả results về máy local
-2. So sánh metrics giữa các models (ResNet50 vs EfficientNet)
-3. Analyze confusion matrix để hiểu lỗi của model
-4. Nếu kết quả tốt, có thể train trên 5 folds để ensemble
-   \
-   Bảng biến số cần chuẩn bị, cop từ VAST.AI
-
-5. **IP:** (Ví dụ: `154.57.34.91`)
-
-6. **PORT:** (Ví dụ: `19627`)
-
-7. **SSH KEY:** `C:\Users\ADMIN\.ssh\id_ed25519` (Đường dẫn key trên máy)
-   ![[Pasted image 20251213194325.png]]
-   ![[Pasted image 20251213194303.png]]
-
----
-
-apt-get update && apt-get install -y zip unzip unrar p7zip-full
-
-# Print the public key
-
-Click dis to create ssh or whaater
-[SSH Connection - Vast.ai Documentation – Affordable GPU Cloud Marketplace](https://docs.vast.ai/documentation/instances/connect/ssh#terminal)
-
-```powershell
-cat ~/.ssh/id_ed25519.pub
-ssh-ed25519 AAAAC3NzaC1lZ9DdI1NTE5AAAAIHWGYlMT8CxcILI/i3DsRvX74HNChkm4JSNFu0wmcv0a
-```
-
-# PHẦN 1: GOOGLE DRIVE <-> VAST.AI (Tốc độ cao nhất)
-
-## 1. Chiều UP (Google Drive -> Vast.ai)
-
-Dùng **`gdown`**
-
-- **Chuẩn bị:** Vào Google Drive -> Chuột phải folder dữ liệu -> Share -> **"Anyone with the link"**.
-
-- **Thực hiện (Trên Terminal Vast.ai):**
-
-```bash
-
-# 1. Cài đặt (Mỗi lần thuê máy mới phải chạy lại dòng này)
-
+# 2. Get data
 pip install gdown
+gdown --folder "https://drive.google.com/drive/folders/<YOUR_FOLDER_ID>" -O /workspace/dr-detect/data_dr
+apt-get update && apt-get install -y unzip unrar
+mkdir -p aptos && unzip data_dr/aptos2019-blindness-*.zip -d aptos/
+mkdir -p messidor-2 && unrar x data_dr/messidor-2.rar messidor-2/
+rm -rf data_dr/
 
-# 2. Tải folder (Thay LINK_DRIVE và TÊN_FOLDER)
+# 3. Install deps
+pip install -r requirements.txt
 
-gdown --folder "LINK_GOOGLE_DRIVE_CUA_BAN" -O /workspace/ten_folder_data
+# 4. Verify
+python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+ls aptos/aptos2019-blindness-detection/train_images/ | wc -l  # expect 3662
 
-```
+# 5. Train baseline
+python src/train.py --model baseline --epochs 20 --batch_size 16 --fold 0 2>&1 | tee training_baseline_fold0.log
 
-## 2. Chiều DOWN (Vast.ai -> Google Drive)
+# 6. Train CBAM (optional)
+python src/train.py --model cbam --epochs 20 --batch_size 16 --fold 0 2>&1 | tee training_cbam_fold0.log
 
-Dùng **`rclone`**. Bắt buộc phải cấu hình vì `gdown` không upload được.
-![[Pasted image 20251213194046.png]]
+# 7. Evaluate
+python src/evaluate.py --checkpoint outputs/checkpoints/baseline_resnet50_fold0_best.pth --model baseline
 
-- Bước 0: Set up rclone trên máy
-- Vo trong foulder co chua rclone.exe + shift + chuot phai mo powershelll
-  rclone authorize "drive" "eyJzY29wZSI6ImRyaXZlIn0" -
+# 8. Package results
+tar -czf /workspace/dr-results.tar.gz outputs/ training_*.log
 
-```powershell
-.\rclone.exe authorize "drive" "eyJzY29wZSI6ImRyaXZlIn0"
-```
-
-- **Bước 1: Cài và kết nối (Trên Terminal Vast.ai)**
-
-```bash
-# Cài đặt
-curl https://rclone.org/install.sh | sudo bash
-# Cấu hình (Chỉ cần làm 1 lần mỗi khi thuê máy mới)
-rclone config
-```
-
-- Nhập `n` (New) -> Tên: `gdrive` -> Chọn số `22 (Google Drive).
-
-- Enter liên tục để bỏ qua Client ID/Secret.
-
-- Scope: Chọn `1` (Full access).
-
-- Enter bỏ qua root folder/service account.
-
-- **Edit advanced config:** `n` (No).
-
-- **Use auto config:** **`n` (No)** (Quan trọng!).
-
-- **Copy dòng lệnh** `rclone authorize "drive"` -> Dán vào Terminal máy tính Windows của bạn -> Đăng nhập trình duyệt -> Copy mã code -> Dán lại vào Vast.ai.
-  \*![[Pasted image 20251213193653.png]]
-
-- **Bước 2: Upload dữ liệu (Trên Terminal Vast.ai)**
-
-```powershell
-# Cú pháp: rclone copy <NGUỒN_VAST> <ĐÍCH_DRIVE> -P
-rclone copy /workspace/nlp/ket_qua gdrive:Backup_Vast -P
-```
-
-rclone copy workspace/final_nlp/output.zip gdrive:Output_CsGo -P
-zip -r output.zip /workspace/final_nlp/training/outputs
-_(Cờ `-P` để hiện thanh phần trăm tiến độ)_
-
----
-
-# WINDOWS <-> VAST.AI (Trực tiếp)
-
-_Dùng khi dữ liệu nằm sẵn trong máy tính hoặc mạng nhà bạn đủ mạnh._
-
-_Lưu ý: Chạy lệnh trên **PowerShell** của Windows._
-
-## 1. Chiều UP (Windows -> Vast.ai)
-
-Dùng lệnh `scp` (Copy qua SSH).
-
-```powershell
-
-# Cú pháp mẫu
-
-scp -P <PORT> -i "<ĐƯỜNG_DẪN_KEY>" -r "<FOLDER_MÁY_TÍNH>" root@<IP>:/workspace/<TÊN_FOLDER_MỚI>
-
-```
-
-**Ví dụ thực tế (Copy dán và thay số):**
-
-```powershell
-
-scp -P 19627 -i "C:\Users\ADMIN\.ssh\id_ed25519" -r "D:\Datasets\nlp_data" root@154.57.34.91:/workspace/nlp_data
-
-```
-
-## 2. Chiều DOWN (Vast.ai -> Windows)Đảo ngược vị trí nguồn và đích của lệnh trên.
-
-```powershell
-
-# Cú pháp mẫu
-
-scp -P <PORT> -i "<ĐƯỜNG_DẪN_KEY>" -r root@<IP>:/workspace/<FOLDER_VAST> "<ĐƯỜNG_DẪN_MÁY_TÍNH>"
-
-```
-
-**Ví dụ thực tế (Copy dán và thay số):**
-
-```powershell
-
-scp -P 19627 -i "C:\Users\ADMIN\.ssh\id_ed25519" -r root@154.57.34.91:/workspace/nlp/ket_qua "C:\Users\ADMIN\Downloads\KetQua_Model"
-
-```
-
-![[Pasted image 20251213194205.png]]
-
-```
-apt-get update && apt-get install -y zip unzip unrar p7zip-full
-```
-
-### 2. Hướng dẫn chi tiết từng loại file
-
-````
-    # Giải nén tại chỗ
-    unzip file_du_lieu.zip
-
-    # Giải nén vào thư mục cụ thể (Ví dụ vào folder /workspace/data)
-    unzip file_du_lieu.zip -d /workspace/data
-    # Cú pháp: zip -r <tên_file_tạo_ra.zip> <folder_muốn_nén>
-    zip -r ket_qua.zip /workspace/nlp/output_folder
-    ```
-
-
-
-#### B. File `.rar`
-
-- **Giải nén (Unrar):**
-
-    Bash
-
-    ```
-    # Giải nén giữ nguyên cấu trúc thư mục
-    unrar x file_du_lieu.rar
-
-    # Giải nén vào đường dẫn cụ thể (Lưu ý không có dấu cách sau folder đích)
-    unrar x file_du_lieu.rar /workspace/data/
-    ```
-
-
-#### C. File `.tar.gz` hoặc `.tgz` (Thường gặp trong dataset Linux)
-
-- **Giải nén (Tar):**
-
-    Bash
-
-    ```
-    # x: extract, z: gzip, v: verbose (hiện tên file), f: file
-    tar -xzvf file_du_lieu.tar.gz
-
-    # Giải nén vào thư mục khác (dùng tham số -C)
-    tar -xzvf file_du_lieu.tar.gz -C /workspace/data
-    ```
-
-
-#### D. File `.7z` (Hoặc file nén nào `unrar` không mở được)
-
-- **Giải nén (7zip):**
-
-    Bash
-
-    ```
-    # x: extract với đường dẫn đầy đủ
-    7z x file_du_lieu.7z
-    ```
-
-````
-
-# Kiểm tra dung lượng còn trống
-
-```
-df -h /workspace/
-
-- **Size:** Tổng dung lượng.
-
-- **Avail:** Dung lượng còn trống (Quan trọng nhất).
-
-
-Nếu giải nén xong mà hết chỗ, nhớ xóa file nén gốc đi:
-
-Bash
-
-rm file_du_lieu.zip
+# 9. Upload (rclone) or download (scp) results → then DESTROY INSTANCE!
 ```

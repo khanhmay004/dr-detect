@@ -226,9 +226,12 @@ def get_train_transform(image_size: int = IMAGE_SIZE):
         A.HorizontalFlip(p=0.5),
         A.VerticalFlip(p=0.5),
         A.RandomRotate90(p=0.5),
-        A.ShiftScaleRotate(
-            shift_limit=0.1, scale_limit=0.1, rotate_limit=45,
-            border_mode=cv2.BORDER_CONSTANT, p=0.5,
+        A.Affine(
+            translate_percent={"x": (-0.1, 0.1), "y": (-0.1, 0.1)},
+            scale=(0.9, 1.1),
+            rotate=(-45, 45),
+            mode=cv2.BORDER_CONSTANT,
+            p=0.5,
         ),
         A.OneOf([
             A.RandomBrightnessContrast(
@@ -236,7 +239,7 @@ def get_train_transform(image_size: int = IMAGE_SIZE):
             ),
             A.CLAHE(clip_limit=2.0, p=1.0),
         ], p=0.3),
-        A.GaussNoise(var_limit=(10, 50), p=0.2),
+        A.GaussNoise(std_range=(0.04, 0.20), p=0.2),
         A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
         ToTensorV2(),
     ])
