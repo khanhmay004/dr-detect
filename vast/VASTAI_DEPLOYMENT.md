@@ -17,6 +17,7 @@ Before starting, make sure:
 - [x] Datasets uploaded to Google Drive (`data_dr/` folder, shared)
 
 > **IMPORTANT**: Before renting a Vast.ai instance, push your latest code:
+>
 > ```powershell
 > cd C:\Projects\dr-detect
 > git add -A
@@ -67,6 +68,7 @@ pip install gdown
 ### 3.2 Share your Google Drive folder
 
 Make sure your `data_dr` folder is shared:
+
 - Right-click `data_dr` → **Share** → **"Anyone with the link"** → **Viewer**
 - Copy the folder link
 
@@ -79,7 +81,7 @@ cd /workspace/dr-detect
 # Replace <FOLDER_ID> with the ID from your Google Drive link
 # Example: if link is https://drive.google.com/drive/folders/1aBcDeFgHiJk
 # then FOLDER_ID = 1aBcDeFgHiJk
-gdown --folder "https://drive.google.com/drive/folders/<FOLDER_ID>" -O /workspace/dr-detect/data_dr
+gdown --folder "https://drive.google.com/drive/folders/1lVD77X95Ucpp0npsHUY3AXHyykulkVbP" -O /workspace/dr-detect/data_dr
 ```
 
 ### 3.4 Extract and arrange datasets
@@ -92,9 +94,9 @@ apt-get update && apt-get install -y unzip unrar
 
 # --- APTOS dataset ---
 cd /workspace/dr-detect
-mkdir -p aptos
-# If it downloaded as a zip file:
-unzip data_dr/aptos2019-blindness-*.zip -d aptos/
+# The zip doesn't have a parent folder, so extract it directly into the expected path
+mkdir -p aptos/aptos2019-blindness-detection
+unzip data_dr/aptos2019-blindness-*.zip -d aptos/aptos2019-blindness-detection/
 # If it downloaded as a folder, move it:
 # mv data_dr/aptos2019-blindness-detection aptos/
 
@@ -157,12 +159,13 @@ print(f'PyTorch:     {torch.__version__}')
 print(f'CUDA avail:  {torch.cuda.is_available()}')
 if torch.cuda.is_available():
     print(f'GPU:         {torch.cuda.get_device_name(0)}')
-    vram = torch.cuda.get_device_properties(0).total_mem / 1e9
+    vram = torch.cuda.get_device_properties(0).total_memory / 1e9
     print(f'VRAM:        {vram:.1f} GB')
 "
 ```
 
 Expected:
+
 ```
 PyTorch:     2.x.x
 CUDA avail:  True
@@ -171,6 +174,7 @@ VRAM:        8.0 GB
 ```
 
 If CUDA is False:
+
 ```bash
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 ```
@@ -229,19 +233,19 @@ nvidia-smi
 
 ### 6.4 Expected timeline
 
-| GPU | Per Epoch | 20 Epochs | Cost |
-|-----|-----------|-----------|------|
-| RTX 3060 | ~12–15 min | ~4–5 hrs | ~$0.60–$1.50 |
-| RTX 3070 | ~8–12 min | ~3–4 hrs | ~$0.45–$1.20 |
-| RTX 4070 | ~6–8 min | ~2–3 hrs | ~$0.30–$0.90 |
+| GPU      | Per Epoch  | 20 Epochs | Cost         |
+| -------- | ---------- | --------- | ------------ |
+| RTX 3060 | ~12–15 min | ~4–5 hrs  | ~$0.60–$1.50 |
+| RTX 3070 | ~8–12 min  | ~3–4 hrs  | ~$0.45–$1.20 |
+| RTX 4070 | ~6–8 min   | ~2–3 hrs  | ~$0.30–$0.90 |
 
 ### 6.5 Expected final metrics
 
-| Metric | Expected Range |
-|--------|---------------|
-| Best Val QWK | 0.75 – 0.85 |
-| Best Val AUC | 0.85 – 0.95 |
-| Best Val Acc | 0.72 – 0.80 |
+| Metric       | Expected Range |
+| ------------ | -------------- |
+| Best Val QWK | 0.75 – 0.85    |
+| Best Val AUC | 0.85 – 0.95    |
+| Best Val Acc | 0.72 – 0.80    |
 
 ---
 
@@ -396,6 +400,7 @@ print(f'Messidor img: {MESSIDOR_IMAGES}  exists={MESSIDOR_IMAGES.exists()}')
 ```
 
 Expected paths (relative to project root):
+
 ```
 aptos/aptos2019-blindness-detection/train.csv
 aptos/aptos2019-blindness-detection/train_images/

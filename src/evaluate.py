@@ -48,7 +48,7 @@ from config import (
     MC_DROPOUT_RATE, MC_INFERENCE_PASSES, NUM_CLASSES, USE_AMP,
     seed_everything, setup_directories, RANDOM_SEED,
 )
-from model import create_model
+from model import create_model, create_baseline_model
 from dataset import MessidorDataset, get_val_transform
 
 
@@ -265,7 +265,12 @@ def main():
     )
     parser.add_argument(
         "--checkpoint", type=str, required=True,
-        help="Path to trained CBAM-ResNet50 checkpoint",
+        help="Path to trained checkpoint (.pth file)",
+    )
+    parser.add_argument(
+        "--model", type=str, default="cbam",
+        choices=["baseline", "cbam"],
+        help="Model architecture: 'baseline' (no CBAM) or 'cbam' (default)",
     )
     parser.add_argument("--batch_size", type=int, default=BATCH_SIZE)
     parser.add_argument("--mc_passes", type=int, default=MC_INFERENCE_PASSES,
@@ -299,12 +304,19 @@ def main():
     print(f"  Images: {len(dataset)}")
 
     # ---- Model ----
-    print("\nLoading checkpoint …")
-    model = create_model(
-        num_classes=NUM_CLASSES,
-        dropout_rate=MC_DROPOUT_RATE,
-        pretrained=False,           # weights come from checkpoint
-    )
+    print(f"\nLoading {args.model.upper()} model from checkpoint …")
+    if args.model == "baseline":
+        model = create_baseline_model(
+            num_classes=NUM_CLASSES,
+            dropout_rate=MC_DROPOUT_RATE,
+            pretrained=False,
+        )
+    else:
+        model = create_model(
+            num_classes=NUM_CLASSES,
+            dropout_rate=MC_DROPOUT_RATE,
+            pretrained=False,
+        )
     ckpt = torch.load(args.checkpoint, map_location=device, weights_only=False)
     model.load_state_dict(ckpt["model_state_dict"])
     model = model.to(device)
