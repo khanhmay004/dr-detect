@@ -1,0 +1,60 @@
+C:\Projects\dr-detect>c:\Projects\dr-detect\dr-env\Scripts\activate.bat
+
+(dr-env) C:\Projects\dr-detect>python src/train.py --model baseline --epochs 2 --batch_size 2 --fold 0
+Device: cpu
+
+Loading APTOS 2019 data ...
+  Train: 2929  |  Val: 733
+c:\Projects\dr-detect\dr-env\Lib\site-packages\albumentations\core\validation.py:114: UserWarning: ShiftScaleRotate is a special case of Affine transform. Please use Affine transform instead.
+  original_init(self, **validated_kwargs)
+C:\Projects\dr-detect\src\dataset.py:220: UserWarning: Argument(s) 'var_limit' are not valid for transform GaussNoise
+  A.GaussNoise(var_limit=(10, 50), p=0.2),
+
+Building BASELINE model ...
+  Parameters: 23,518,277
+  Class alpha weights: [0.406 1.979 0.733 3.804 2.482]
+
+=================================================================
+  baseline_resnet50 - Fold 0
+  Epochs: 1 -> 2  |  AMP: False  |  Device: cpu
+=================================================================
+=================================================================
+  baseline_resnet50 - Fold 0
+  Epochs: 1 -> 2  |  AMP: False  |  Device: cpu
+=================================================================
+  baseline_resnet50 - Fold 0
+  Epochs: 1 -> 2  |  AMP: False  |  Device: cpu
+=================================================================
+  Epochs: 1 -> 2  |  AMP: False  |  Device: cpu
+=================================================================
+
+Epoch 1/2 [Train]: 100%|██████████████████████████████████████████████████████████████████████| 1464/1464 [25:50<00:00,  1.06s/it, loss=0.0014] 
+=================================================================
+
+Epoch 1/2 [Train]: 100%|██████████████████████████████████████████████████████████████████████| 1464/1464 [25:50<00:00,  1.06s/it, loss=0.0014] 
+
+Epoch 1/2 [Train]: 100%|██████████████████████████████████████████████████████████████████████| 1464/1464 [25:50<00:00,  1.06s/it, loss=0.0014] 
+Epoch 1/2 [Val]: 100%|███████████████████████████████████████████████████████████████████████████████████████| 367/367 [02:29<00:00,  2.46it/s] 
+Epoch 1/2 [Val]: 100%|███████████████████████████████████████████████████████████████████████████████████████| 367/367 [02:29<00:00,  2.46it/s] 
+
+  Epoch 1/2
+    Train  — loss: 1.1228  acc: 0.6885
+    Val    — loss: 1.0740  acc: 0.7517
+    Val κ: 0.7795  AUC: 0.9683  LR: 5.00e-05
+  New best model saved (kappa = 0.7795)
+Epoch 2/2 [Train]: 100%|██████████████████████████████████████████████████████████████████████| 1464/1464 [26:47<00:00,  1.10s/it, loss=0.0246] 
+Epoch 2/2 [Val]: 100%|███████████████████████████████████████████████████████████████████████████████████████| 367/367 [02:21<00:00,  2.60it/s]
+
+  Epoch 2/2
+    Train  — loss: 0.8844  acc: 0.7490
+    Val    — loss: 1.5876  acc: 0.7858
+    Val κ: 0.8229  AUC: 0.9770  LR: 0.00e+00
+  New best model saved (kappa = 0.8229)
+
+=================================================================
+  Training done - Best Val kappa: 0.8229
+=================================================================
+
+  History saved to C:\Projects\dr-detect\outputs\logs\baseline_resnet50_fold0_history.json
+
+Training finished!

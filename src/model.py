@@ -31,6 +31,9 @@ Reference:
   CBAM — Woo et al., "CBAM: Convolutional Block Attention Module", ECCV 2018
 """
 
+from contextlib import contextmanager
+from typing import Iterator
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -131,7 +134,7 @@ class CBAM(nn.Module):
 
 
 # =========================================================================
-#  MC Dropout (always-on)
+#  MC Dropout (always-on, with deterministic mode support)
 # =========================================================================
 
 class MCDropout(nn.Module):
@@ -141,15 +144,20 @@ class MCDropout(nn.Module):
     in eval mode.  Here we hard-code ``training=True`` in the functional
     call so the mask is always sampled — this is the key mechanism for
     Monte-Carlo Dropout Bayesian inference.
+
+    The ``mc_active`` flag can be temporarily disabled for deterministic
+    validation during training (as opposed to MC inference at test time).
     """
 
     def __init__(self, p: float = MC_DROPOUT_RATE):
         super().__init__()
         self.p = p
+        self.mc_active = True
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # training=True is intentional — dropout is ALWAYS active
-        return F.dropout(x, self.p, training=True)
+        if self.mc_active:
+            return F.dropout(x, self.p, training=True)
+        return x
 
 
 # =========================================================================
@@ -235,6 +243,18 @@ class CBAMResNet50(nn.Module):
         x = self.fc(x)                    # (B, num_classes)
         return x
 
+    @contextmanager
+    def deterministic_mode(self) -> Iterator[None]:
+        """Temporarily disable MC Dropout for deterministic validation."""
+        mc_modules = [m for m in self.modules() if isinstance(m, MCDropout)]
+        for m in mc_modules:
+            m.mc_active = False
+        try:
+            yield
+        finally:
+            for m in mc_modules:
+                m.mc_active = True
+
 
 # =========================================================================
 #  Factory + smoke test
@@ -253,12 +273,85 @@ def create_model(
     )
 
 
+# =========================================================================
+#  Baseline ResNet-50 without CBAM (for ablation study)
+# =========================================================================
+
+class BaselineResNet50(nn.Module):
+    """Baseline ResNet-50 without CBAM attention.
+
+    Uses the same classification head (MCDropout + Linear) as CBAMResNet50
+    to ensure a fair ablation comparison. The ONLY difference between this
+    and CBAMResNet50 is the presence/absence of CBAM modules.
+    """
+
+    def __init__(
+        self,
+        num_classes: int = NUM_CLASSES,
+        dropout_rate: float = MC_DROPOUT_RATE,
+        pretrained: bool = True,
+    ):
+        super().__init__()
+
+        weights = ResNet50_Weights.IMAGENET1K_V2 if pretrained else None
+        backbone = models.resnet50(weights=weights)
+
+        self.stem = nn.Sequential(
+            backbone.conv1, backbone.bn1, backbone.relu, backbone.maxpool,
+        )
+        self.layer1 = backbone.layer1
+        self.layer2 = backbone.layer2
+        self.layer3 = backbone.layer3
+        self.layer4 = backbone.layer4
+
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.mc_dropout = MCDropout(dropout_rate)
+        self.fc = nn.Linear(2048, num_classes)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.stem(x)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        x = self.mc_dropout(x)
+        x = self.fc(x)
+        return x
+
+    @contextmanager
+    def deterministic_mode(self) -> Iterator[None]:
+        """Temporarily disable MC Dropout for deterministic validation."""
+        mc_modules = [m for m in self.modules() if isinstance(m, MCDropout)]
+        for m in mc_modules:
+            m.mc_active = False
+        try:
+            yield
+        finally:
+            for m in mc_modules:
+                m.mc_active = True
+
+
+def create_baseline_model(
+    num_classes: int = NUM_CLASSES,
+    dropout_rate: float = MC_DROPOUT_RATE,
+    pretrained: bool = True,
+) -> BaselineResNet50:
+    """Factory function for baseline model (no CBAM)."""
+    return BaselineResNet50(
+        num_classes=num_classes,
+        dropout_rate=dropout_rate,
+        pretrained=pretrained,
+    )
+
+
 if __name__ == "__main__":
-    # --- Shape test ---
+    # --- CBAM Model Shape test ---
     model = CBAMResNet50(num_classes=5, pretrained=False)
     x = torch.randn(2, 3, 512, 512)
     out = model(x)
-    print(f"Output shape: {out.shape}")    # (2, 5)
+    print(f"CBAM Output shape: {out.shape}")
 
     # --- MC Dropout stays active in eval mode ---
     model.eval()
@@ -266,9 +359,37 @@ if __name__ == "__main__":
     assert not torch.equal(o1, o2), "MC Dropout must produce different outputs!"
     print("MC Dropout active in eval() ✓")
 
-    # --- Parameter count ---
-    total = sum(p.numel() for p in model.parameters())
-    trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"Total params:     {total:,}")
-    print(f"Trainable params: {trainable:,}")
+    # --- Deterministic mode test ---
+    with model.deterministic_mode():
+        d1 = model(x)
+        d2 = model(x)
+    assert torch.equal(d1, d2), "Deterministic mode should produce identical outputs!"
+    print("Deterministic mode works ✓")
+
+    # --- MC mode restored after context exit ---
+    o3, o4 = model(x), model(x)
+    assert not torch.equal(o3, o4), "MC mode should be restored after context exit!"
+    print("MC mode restored after context exit ✓")
+
+    # --- CBAM Parameter count ---
+    cbam_params = sum(p.numel() for p in model.parameters())
+    print(f"CBAM params: {cbam_params:,}")
+
+    # --- Baseline Model test ---
+    baseline = BaselineResNet50(num_classes=5, pretrained=False)
+    baseline.eval()
+    out_b = baseline(x)
+    print(f"Baseline Output shape: {out_b.shape}")
+
+    # --- Baseline deterministic mode ---
+    with baseline.deterministic_mode():
+        bd1 = baseline(x)
+        bd2 = baseline(x)
+    assert torch.equal(bd1, bd2), "Baseline deterministic mode should work!"
+    print("Baseline deterministic mode works ✓")
+
+    baseline_params = sum(p.numel() for p in baseline.parameters())
+    print(f"Baseline params: {baseline_params:,}")
+    print(f"CBAM adds {cbam_params - baseline_params:,} parameters")
+
     print("All model tests passed ✓")

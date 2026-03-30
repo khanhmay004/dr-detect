@@ -1055,13 +1055,13 @@ python -c "import torch; c = torch.load('outputs/checkpoints/baseline_resnet50_f
 
 | ID | Task | File | Status | Depends |
 |----|------|------|--------|---------|
-| 0.1.1 | Read current `MCDropout` class implementation | `src/model.py` | `[ ]` | — |
-| 0.1.2 | Add `self.mc_active = True` attribute to `MCDropout.__init__()` | `src/model.py` | `[ ]` | 0.1.1 |
-| 0.1.3 | Modify `MCDropout.forward()` to check `if self.mc_active:` before applying dropout | `src/model.py` | `[ ]` | 0.1.2 |
-| 0.1.4 | Add `from contextlib import contextmanager` import at top of file | `src/model.py` | `[ ]` | — |
-| 0.1.5 | Implement `deterministic_mode()` context manager in `CBAMResNet50` class | `src/model.py` | `[ ]` | 0.1.3, 0.1.4 |
-| 0.1.6 | Write unit test for MCDropout deterministic mode | `src/tests/test_model.py` | `[ ]` | 0.1.5 |
-| 0.1.7 | Run unit test — verify outputs differ in MC mode, identical in deterministic mode | — | `[ ]` | 0.1.6 |
+| 0.1.1 | Read current `MCDropout` class implementation | `src/model.py` | `[x]` | — |
+| 0.1.2 | Add `self.mc_active = True` attribute to `MCDropout.__init__()` | `src/model.py` | `[x]` | 0.1.1 |
+| 0.1.3 | Modify `MCDropout.forward()` to check `if self.mc_active:` before applying dropout | `src/model.py` | `[x]` | 0.1.2 |
+| 0.1.4 | Add `from contextlib import contextmanager` import at top of file | `src/model.py` | `[x]` | — |
+| 0.1.5 | Implement `deterministic_mode()` context manager in `CBAMResNet50` class | `src/model.py` | `[x]` | 0.1.3, 0.1.4 |
+| 0.1.6 | Write unit test for MCDropout deterministic mode | `src/tests/test_model.py` | `[x]` | 0.1.5 |
+| 0.1.7 | Run unit test — verify outputs differ in MC mode, identical in deterministic mode | — | `[x]` | 0.1.6 |
 
 **Test Script** (save as `src/tests/test_model.py`):
 ```python
@@ -1107,12 +1107,12 @@ if __name__ == "__main__":
 
 | ID | Task | File | Status | Depends |
 |----|------|------|--------|---------|
-| 0.2.1 | Add `GRAD_CLIP_NORM = 1.0` constant to config | `src/config.py` | `[ ]` | — |
-| 0.2.2 | Import `GRAD_CLIP_NORM` in train.py | `src/train.py` | `[ ]` | 0.2.1 |
-| 0.2.3 | Add `self.grad_clip_norm` parameter to `Trainer.__init__()` | `src/train.py` | `[ ]` | 0.2.2 |
-| 0.2.4 | Add `self.scaler.unscale_(optimizer)` before step in `train_epoch()` | `src/train.py` | `[ ]` | 0.2.3 |
-| 0.2.5 | Add `torch.nn.utils.clip_grad_norm_()` call after unscale | `src/train.py` | `[ ]` | 0.2.4 |
-| 0.2.6 | Test training runs without NaN loss (visual check during smoke test) | — | `[ ]` | 0.2.5 |
+| 0.2.1 | Add `GRAD_CLIP_NORM = 1.0` constant to config | `src/config.py` | `[x]` | — |
+| 0.2.2 | Import `GRAD_CLIP_NORM` in train.py | `src/train.py` | `[x]` | 0.2.1 |
+| 0.2.3 | Add `self.grad_clip_norm` parameter to `Trainer.__init__()` | `src/train.py` | `[x]` | 0.2.2 |
+| 0.2.4 | Add `self.scaler.unscale_(optimizer)` before step in `train_epoch()` | `src/train.py` | `[x]` | 0.2.3 |
+| 0.2.5 | Add `torch.nn.utils.clip_grad_norm_()` call after unscale | `src/train.py` | `[x]` | 0.2.4 |
+| 0.2.6 | Test training runs without NaN loss (visual check during smoke test) | — | `[x]` | 0.2.5 |
 
 ---
 
@@ -1121,11 +1121,11 @@ if __name__ == "__main__":
 
 | ID | Task | File | Status | Depends |
 |----|------|------|--------|---------|
-| 0.3.1 | Add `self.num_epochs = EPOCHS` in `Trainer.__init__()` | `src/train.py` | `[ ]` | — |
-| 0.3.2 | Set `self.num_epochs = num_epochs` at start of `fit()` method | `src/train.py` | `[ ]` | 0.3.1 |
-| 0.3.3 | Replace `EPOCHS` with `self.num_epochs` in `train_epoch()` tqdm desc | `src/train.py` | `[ ]` | 0.3.2 |
-| 0.3.4 | Replace `EPOCHS` with `self.num_epochs` in `validate()` tqdm desc | `src/train.py` | `[ ]` | 0.3.2 |
-| 0.3.5 | Visual verification: run `--epochs 3` and check progress bar shows `/3` | — | `[ ]` | 0.3.4 |
+| 0.3.1 | Add `self.num_epochs = EPOCHS` in `Trainer.__init__()` | `src/train.py` | `[x]` | — |
+| 0.3.2 | Set `self.num_epochs = num_epochs` at start of `fit()` method | `src/train.py` | `[x]` | 0.3.1 |
+| 0.3.3 | Replace `EPOCHS` with `self.num_epochs` in `train_epoch()` tqdm desc | `src/train.py` | `[x]` | 0.3.2 |
+| 0.3.4 | Replace `EPOCHS` with `self.num_epochs` in `validate()` tqdm desc | `src/train.py` | `[x]` | 0.3.2 |
+| 0.3.5 | Visual verification: run `--epochs 3` and check progress bar shows `/3` | — | `[x]` | 0.3.4 |
 
 ---
 
@@ -1134,14 +1134,14 @@ if __name__ == "__main__":
 
 | ID | Task | File | Status | Depends |
 |----|------|------|--------|---------|
-| 0.4.1 | Design `BaselineResNet50` class structure (same head as CBAM) | — | `[ ]` | — |
-| 0.4.2 | Implement `BaselineResNet50.__init__()` with stem + layer1-4 | `src/model.py` | `[ ]` | 0.4.1 |
-| 0.4.3 | Add avgpool + mc_dropout + fc to `BaselineResNet50` (same as CBAM) | `src/model.py` | `[ ]` | 0.4.2 |
-| 0.4.4 | Implement `BaselineResNet50.forward()` | `src/model.py` | `[ ]` | 0.4.3 |
-| 0.4.5 | Add `deterministic_mode()` context manager to `BaselineResNet50` | `src/model.py` | `[ ]` | 0.4.4, 0.1.5 |
-| 0.4.6 | Create `create_baseline_model()` factory function | `src/model.py` | `[ ]` | 0.4.5 |
-| 0.4.7 | Write unit test for baseline model output shape | `src/tests/test_model.py` | `[ ]` | 0.4.6 |
-| 0.4.8 | Verify baseline param count (~23.5M) matches standard ResNet-50 | — | `[ ]` | 0.4.7 |
+| 0.4.1 | Design `BaselineResNet50` class structure (same head as CBAM) | — | `[x]` | — |
+| 0.4.2 | Implement `BaselineResNet50.__init__()` with stem + layer1-4 | `src/model.py` | `[x]` | 0.4.1 |
+| 0.4.3 | Add avgpool + mc_dropout + fc to `BaselineResNet50` (same as CBAM) | `src/model.py` | `[x]` | 0.4.2 |
+| 0.4.4 | Implement `BaselineResNet50.forward()` | `src/model.py` | `[x]` | 0.4.3 |
+| 0.4.5 | Add `deterministic_mode()` context manager to `BaselineResNet50` | `src/model.py` | `[x]` | 0.4.4, 0.1.5 |
+| 0.4.6 | Create `create_baseline_model()` factory function | `src/model.py` | `[x]` | 0.4.5 |
+| 0.4.7 | Write unit test for baseline model output shape | `src/tests/test_model.py` | `[x]` | 0.4.6 |
+| 0.4.8 | Verify baseline param count (~23.5M) matches standard ResNet-50 | — | `[x]` | 0.4.7 |
 
 **Test Script Addition**:
 ```python
@@ -1170,15 +1170,15 @@ def test_baseline_model():
 
 | ID | Task | File | Status | Depends |
 |----|------|------|--------|---------|
-| 0.5.1 | Add `--model` argument to argparse (choices: baseline, cbam) | `src/train.py` | `[ ]` | — |
-| 0.5.2 | Import `create_baseline_model` from model.py | `src/train.py` | `[ ]` | 0.4.6 |
-| 0.5.3 | Add if/else block in `main()` to select model based on `args.model` | `src/train.py` | `[ ]` | 0.5.1, 0.5.2 |
-| 0.5.4 | Create `model_name` variable based on model type | `src/train.py` | `[ ]` | 0.5.3 |
-| 0.5.5 | Add `model_name` parameter to `Trainer.__init__()` | `src/train.py` | `[ ]` | 0.5.4 |
-| 0.5.6 | Update `save_checkpoint()` to use `self.model_name` in filename | `src/train.py` | `[ ]` | 0.5.5 |
-| 0.5.7 | Update `_save_history()` to use `self.model_name` in filename | `src/train.py` | `[ ]` | 0.5.5 |
-| 0.5.8 | Test: `--model baseline` creates `baseline_resnet50_fold0_*.pth` | — | `[ ]` | 0.5.7 |
-| 0.5.9 | Test: `--model cbam` creates `cbam_resnet50_fold0_*.pth` | — | `[ ]` | 0.5.7 |
+| 0.5.1 | Add `--model` argument to argparse (choices: baseline, cbam) | `src/train.py` | `[x]` | — |
+| 0.5.2 | Import `create_baseline_model` from model.py | `src/train.py` | `[x]` | 0.4.6 |
+| 0.5.3 | Add if/else block in `main()` to select model based on `args.model` | `src/train.py` | `[x]` | 0.5.1, 0.5.2 |
+| 0.5.4 | Create `model_name` variable based on model type | `src/train.py` | `[x]` | 0.5.3 |
+| 0.5.5 | Add `model_name` parameter to `Trainer.__init__()` | `src/train.py` | `[x]` | 0.5.4 |
+| 0.5.6 | Update `save_checkpoint()` to use `self.model_name` in filename | `src/train.py` | `[x]` | 0.5.5 |
+| 0.5.7 | Update `_save_history()` to use `self.model_name` in filename | `src/train.py` | `[x]` | 0.5.5 |
+| 0.5.8 | Test: `--model baseline` creates `baseline_resnet50_fold0_*.pth` | — | `[x]` | 0.5.7 |
+| 0.5.9 | Test: `--model cbam` creates `cbam_resnet50_fold0_*.pth` | — | `[x]` | 0.5.7 |
 
 ---
 
@@ -1187,19 +1187,19 @@ def test_baseline_model():
 
 | ID | Task | File | Status | Depends |
 |----|------|------|--------|---------|
-| 0.6.1 | Create `src/configs/` directory | — | `[ ]` | — |
-| 0.6.2 | Create `src/configs/__init__.py` (empty) | `src/configs/__init__.py` | `[ ]` | 0.6.1 |
-| 0.6.3 | Implement `ExperimentConfig` dataclass | `src/configs/experiment_config.py` | `[ ]` | 0.6.2 |
-| 0.6.4 | Add `from_yaml()` classmethod to ExperimentConfig | `src/configs/experiment_config.py` | `[ ]` | 0.6.3 |
-| 0.6.5 | Add `to_yaml()` method to ExperimentConfig | `src/configs/experiment_config.py` | `[ ]` | 0.6.3 |
-| 0.6.6 | Add `get_device()` method (resolves "auto" to actual device) | `src/configs/experiment_config.py` | `[ ]` | 0.6.3 |
-| 0.6.7 | Create `cpu_smoke_test.yaml` config file | `src/configs/cpu_smoke_test.yaml` | `[ ]` | 0.6.3 |
-| 0.6.8 | Create `gpu_baseline.yaml` config file | `src/configs/gpu_baseline.yaml` | `[ ]` | 0.6.3 |
-| 0.6.9 | Create `gpu_cbam.yaml` config file | `src/configs/gpu_cbam.yaml` | `[ ]` | 0.6.3 |
-| 0.6.10 | Add `--config` argument to argparse in train.py | `src/train.py` | `[ ]` | — |
-| 0.6.11 | Implement `load_config()` utility function | `src/configs/experiment_config.py` | `[ ]` | 0.6.4 |
-| 0.6.12 | Integrate config loading into `main()` | `src/train.py` | `[ ]` | 0.6.10, 0.6.11 |
-| 0.6.13 | Test: `--config cpu_smoke_test.yaml` loads correct settings | — | `[ ]` | 0.6.12 |
+| 0.6.1 | Create `src/configs/` directory | — | `[x]` | — |
+| 0.6.2 | Create `src/configs/__init__.py` (empty) | `src/configs/__init__.py` | `[x]` | 0.6.1 |
+| 0.6.3 | Implement `ExperimentConfig` dataclass | `src/configs/experiment_config.py` | `[x]` | 0.6.2 |
+| 0.6.4 | Add `from_yaml()` classmethod to ExperimentConfig | `src/configs/experiment_config.py` | `[x]` | 0.6.3 |
+| 0.6.5 | Add `to_yaml()` method to ExperimentConfig | `src/configs/experiment_config.py` | `[x]` | 0.6.3 |
+| 0.6.6 | Add `get_device()` method (resolves "auto" to actual device) | `src/configs/experiment_config.py` | `[x]` | 0.6.3 |
+| 0.6.7 | Create `cpu_smoke_test.yaml` config file | `src/configs/cpu_smoke_test.yaml` | `[x]` | 0.6.3 |
+| 0.6.8 | Create `gpu_baseline.yaml` config file | `src/configs/gpu_baseline.yaml` | `[x]` | 0.6.3 |
+| 0.6.9 | Create `gpu_cbam.yaml` config file | `src/configs/gpu_cbam.yaml` | `[x]` | 0.6.3 |
+| 0.6.10 | Add `--config` argument to argparse in train.py | `src/train.py` | `[x]` | — |
+| 0.6.11 | Implement `load_config()` utility function | `src/configs/experiment_config.py` | `[x]` | 0.6.4 |
+| 0.6.12 | Integrate config loading into `main()` | `src/train.py` | `[x]` | 0.6.10, 0.6.11 |
+| 0.6.13 | Test: `--config cpu_smoke_test.yaml` loads correct settings | — | `[x]` | 0.6.12 |
 
 ---
 
@@ -1210,14 +1210,14 @@ def test_baseline_model():
 
 | ID | Task | File | Status | Depends |
 |----|------|------|--------|---------|
-| 1.1.1 | Run unit tests: `python src/tests/test_model.py` | — | `[ ]` | Phase 0 |
-| 1.1.2 | Run CPU smoke test: `python src/train.py --model baseline --epochs 2 --batch_size 2` | — | `[ ]` | 1.1.1 |
-| 1.1.3 | Verify training loop completes both epochs without error | — | `[ ]` | 1.1.2 |
-| 1.1.4 | Verify progress bar shows "Epoch X/2" (not hardcoded /20) | — | `[ ]` | 1.1.2 |
-| 1.1.5 | Verify checkpoint file created: `outputs/checkpoints/baseline_resnet50_fold0_best.pth` | — | `[ ]` | 1.1.2 |
-| 1.1.6 | Verify history JSON created: `outputs/logs/baseline_resnet50_fold0_history.json` | — | `[ ]` | 1.1.2 |
-| 1.1.7 | Run validation twice manually — verify kappa is identical (deterministic) | — | `[ ]` | 1.1.2 |
-| 1.1.8 | Check no NaN values in loss output (gradient clipping working) | — | `[ ]` | 1.1.2 |
+| 1.1.1 | Run unit tests: `python src/tests/test_model.py` | — | `[x]` | Phase 0 |
+| 1.1.2 | Run CPU smoke test: `python src/train.py --model baseline --epochs 2 --batch_size 2` | — | `[x]` | 1.1.1 |
+| 1.1.3 | Verify training loop completes both epochs without error | — | `[x]` | 1.1.2 |
+| 1.1.4 | Verify progress bar shows "Epoch X/2" (not hardcoded /20) | — | `[x]` | 1.1.2 |
+| 1.1.5 | Verify checkpoint file created: `outputs/checkpoints/baseline_resnet50_fold0_best.pth` | — | `[x]` | 1.1.2 |
+| 1.1.6 | Verify history JSON created: `outputs/logs/baseline_resnet50_fold0_history.json` | — | `[x]` | 1.1.2 |
+| 1.1.7 | Run validation twice manually — verify kappa is identical (deterministic) | — | `[x]` | 1.1.2 |
+| 1.1.8 | Check no NaN values in loss output (gradient clipping working) | — | `[x]` | 1.1.2 |
 
 **Verification Commands**:
 ```bash
@@ -1241,11 +1241,11 @@ cat outputs/logs/baseline_resnet50_fold0_history.json
 
 | ID | Task | File | Status | Depends |
 |----|------|------|--------|---------|
-| 1.2.1 | Run CPU smoke test: `python src/train.py --model cbam --epochs 2 --batch_size 2` | — | `[ ]` | 1.1.8 |
-| 1.2.2 | Verify training completes without error | — | `[ ]` | 1.2.1 |
-| 1.2.3 | Verify checkpoint: `outputs/checkpoints/cbam_resnet50_fold0_best.pth` | — | `[ ]` | 1.2.1 |
-| 1.2.4 | Verify history: `outputs/logs/cbam_resnet50_fold0_history.json` | — | `[ ]` | 1.2.1 |
-| 1.2.5 | Compare param count: CBAM (~25.5M) vs baseline (~23.5M) — CBAM should be higher | — | `[ ]` | 1.2.1 |
+| 1.2.1 | Run CPU smoke test: `python src/train.py --model cbam --epochs 2 --batch_size 2` | — | `[x]` | 1.1.8 |
+| 1.2.2 | Verify training completes without error | — | `[x]` | 1.2.1 |
+| 1.2.3 | Verify checkpoint: `outputs/checkpoints/cbam_resnet50_fold0_best.pth` | — | `[x]` | 1.2.1 |
+| 1.2.4 | Verify history: `outputs/logs/cbam_resnet50_fold0_history.json` | — | `[x]` | 1.2.1 |
+| 1.2.5 | Compare param count: CBAM (~25.5M) vs baseline (~23.5M) — CBAM should be higher | — | `[x]` | 1.2.1 |
 
 ---
 
@@ -1254,9 +1254,9 @@ cat outputs/logs/baseline_resnet50_fold0_history.json
 
 | ID | Task | File | Status | Depends |
 |----|------|------|--------|---------|
-| 1.3.1 | Create test script that runs validation 3 times on same loader | `src/tests/test_determinism.py` | `[ ]` | 1.1.7 |
-| 1.3.2 | Run test script — all 3 validation kappas must be identical | — | `[ ]` | 1.3.1 |
-| 1.3.3 | Document validation kappa values in test output | — | `[ ]` | 1.3.2 |
+| 1.3.1 | Create test script that runs validation 3 times on same loader | `src/tests/test_determinism.py` | `[x]` | 1.1.7 |
+| 1.3.2 | Run test script — all 3 validation kappas must be identical | — | `[x]` | 1.3.1 |
+| 1.3.3 | Document validation kappa values in test output | — | `[x]` | 1.3.2 |
 
 **Test Script** (save as `src/tests/test_determinism.py`):
 ```python
@@ -1349,25 +1349,25 @@ if __name__ == "__main__":
 
 ### SUMMARY: Current Sprint Tasks (CPU-First)
 
-The following tasks should be completed in order for CPU verification:
+**STATUS: ALL CPU TASKS COMPLETED**
 
 ```
-Phase 0 Tasks: 42 total
-├── 0.1 MCDropout Fix:      7 tasks
-├── 0.2 Gradient Clipping:  6 tasks
-├── 0.3 Progress Bar:       5 tasks
-├── 0.4 Baseline Model:     8 tasks
-├── 0.5 CLI Arguments:      9 tasks
-└── 0.6 Config System:     13 tasks
+Phase 0 Tasks: 42 total - ALL COMPLETE [x]
+├── 0.1 MCDropout Fix:      7 tasks [x]
+├── 0.2 Gradient Clipping:  6 tasks [x]
+├── 0.3 Progress Bar:       5 tasks [x]
+├── 0.4 Baseline Model:     8 tasks [x]
+├── 0.5 CLI Arguments:      9 tasks [x]
+└── 0.6 Config System:     13 tasks [x]
 
-Phase 1 CPU Tasks: 16 total
-├── 1.1 Baseline Smoke:     8 tasks
-├── 1.2 CBAM Smoke:         5 tasks
-└── 1.3 Determinism Test:   3 tasks
+Phase 1 CPU Tasks: 16 total - ALL COMPLETE [x]
+├── 1.1 Baseline Smoke:     8 tasks [x]
+├── 1.2 CBAM Smoke:         5 tasks [x]
+└── 1.3 Determinism Test:   3 tasks [x]
 
-GPU Tasks: DEFERRED
-├── 1.4 GPU Training:       5 tasks (deferred)
-└── 1.5 Messidor-2:         3 tasks (deferred)
+GPU Tasks: DEFERRED (for when GPU available)
+├── 1.4 GPU Training:       5 tasks [-]
+└── 1.5 Messidor-2:         3 tasks [-]
 ```
 
 ---

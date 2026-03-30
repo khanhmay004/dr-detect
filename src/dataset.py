@@ -37,6 +37,7 @@ from config import (
     MESSIDOR_IMAGES, MESSIDOR_CSV,
     IMAGE_SIZE, IMAGENET_MEAN, IMAGENET_STD,
     BATCH_SIZE, NUM_WORKERS, RANDOM_SEED, N_FOLDS,
+    APTOS_PROCESSED_DIR, MESSIDOR_PROCESSED_DIR, USE_PREPROCESSED_CACHE,
 )
 from preprocessing import ben_graham_preprocess
 
@@ -67,31 +68,41 @@ class DRDataset(Dataset):
         self,
         df: pd.DataFrame,
         image_dir: str,
-        transform=None,
+        transform: A.Compose | None = None,
         preprocess: bool = True,
         target_size: int = IMAGE_SIZE,
+        use_cache: bool = False,
+        cache_dir: Path | None = None,
     ):
         self.df = df.reset_index(drop=True)
         self.image_dir = Path(image_dir)
         self.transform = transform
         self.preprocess = preprocess
         self.target_size = target_size
+        self.use_cache = use_cache
+        self.cache_dir = cache_dir
 
     def __len__(self) -> int:
         return len(self.df)
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int]:
         row = self.df.iloc[idx]
-        img_path = self.image_dir / f"{row['id_code']}.png"
+        image_id = str(row["id_code"])
 
-        image = cv2.imread(str(img_path))
-        if image is None:
-            raise ValueError(f"Failed to load: {img_path}")
+        cached_path = self.cache_dir / f"{image_id}.png" if self.cache_dir else None
 
-        if self.preprocess:
-            image = ben_graham_preprocess(image, self.target_size)
+        if self.use_cache and cached_path is not None and cached_path.exists():
+            image = cv2.imread(str(cached_path))
+            if image is None:
+                raise ValueError(f"Failed to load cached image: {cached_path}")
+        else:
+            img_path = self.image_dir / f"{image_id}.png"
+            image = cv2.imread(str(img_path))
+            if image is None:
+                raise ValueError(f"Failed to load: {img_path}")
+            if self.preprocess:
+                image = ben_graham_preprocess(image, self.target_size)
 
-        # OpenCV loads BGR — albumentations / PyTorch expect RGB
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
         label = int(row["diagnosis"])
@@ -100,7 +111,6 @@ class DRDataset(Dataset):
             augmented = self.transform(image=image)
             image = augmented["image"]
         else:
-            # Fallback: manual HWC→CHW conversion + [0,1] scaling
             image = torch.from_numpy(
                 image.transpose(2, 0, 1).copy()
             ).float() / 255.0
@@ -134,10 +144,12 @@ class MessidorDataset(Dataset):
         self,
         csv_path: str = str(MESSIDOR_CSV),
         image_dir: str = str(MESSIDOR_IMAGES),
-        transform=None,
+        transform: A.Compose | None = None,
         preprocess: bool = True,
         target_size: int = IMAGE_SIZE,
         labels_available: bool = True,
+        use_cache: bool = False,
+        cache_dir: Path | None = None,
     ):
         self.df = pd.read_csv(csv_path)
         self.image_dir = Path(image_dir)
@@ -145,6 +157,8 @@ class MessidorDataset(Dataset):
         self.preprocess = preprocess
         self.target_size = target_size
         self.labels_available = labels_available
+        self.use_cache = use_cache
+        self.cache_dir = cache_dir
 
     def __len__(self) -> int:
         return len(self.df)
@@ -155,7 +169,6 @@ class MessidorDataset(Dataset):
             candidate = self.image_dir / f"{image_id}{ext}"
             if candidate.exists():
                 return candidate
-        # Last resort: exact name as stored in CSV
         candidate = self.image_dir / image_id
         if candidate.exists():
             return candidate
@@ -167,14 +180,20 @@ class MessidorDataset(Dataset):
         """Returns ``(image, label, image_id)``."""
         row = self.df.iloc[idx]
         image_id = str(row["image_id"])
-        img_path = self._find_image_path(image_id)
 
-        image = cv2.imread(str(img_path))
-        if image is None:
-            raise ValueError(f"Failed to load: {img_path}")
+        cached_path = self.cache_dir / f"{image_id}.png" if self.cache_dir else None
 
-        if self.preprocess:
-            image = ben_graham_preprocess(image, self.target_size)
+        if self.use_cache and cached_path is not None and cached_path.exists():
+            image = cv2.imread(str(cached_path))
+            if image is None:
+                raise ValueError(f"Failed to load cached image: {cached_path}")
+        else:
+            img_path = self._find_image_path(image_id)
+            image = cv2.imread(str(img_path))
+            if image is None:
+                raise ValueError(f"Failed to load: {img_path}")
+            if self.preprocess:
+                image = ben_graham_preprocess(image, self.target_size)
 
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
@@ -269,17 +288,21 @@ def create_dataloaders(
     num_workers: int = NUM_WORKERS,
     image_size: int = IMAGE_SIZE,
     preprocess: bool = True,
-):
+    use_cache: bool = False,
+    cache_dir: Path | None = None,
+) -> Tuple[DataLoader, DataLoader]:
     """Create paired train/val DataLoaders for APTOS."""
     train_dataset = DRDataset(
         df=train_df, image_dir=image_dir,
         transform=get_train_transform(image_size),
         preprocess=preprocess, target_size=image_size,
+        use_cache=use_cache, cache_dir=cache_dir,
     )
     val_dataset = DRDataset(
         df=val_df, image_dir=image_dir,
         transform=get_val_transform(image_size),
         preprocess=preprocess, target_size=image_size,
+        use_cache=use_cache, cache_dir=cache_dir,
     )
 
     train_loader = DataLoader(
@@ -288,7 +311,7 @@ def create_dataloaders(
         shuffle=True,
         num_workers=num_workers,
         pin_memory=True,
-        drop_last=True,            # avoid unstable BN stats on tiny last batch
+        drop_last=True,
     )
     val_loader = DataLoader(
         val_dataset,
@@ -305,6 +328,8 @@ def create_messidor_dataloader(
     num_workers: int = NUM_WORKERS,
     image_size: int = IMAGE_SIZE,
     labels_available: bool = True,
+    use_cache: bool = False,
+    cache_dir: Path | None = None,
 ) -> DataLoader:
     """Create a DataLoader for Messidor-2 inference."""
     dataset = MessidorDataset(
@@ -312,6 +337,8 @@ def create_messidor_dataloader(
         preprocess=True,
         target_size=image_size,
         labels_available=labels_available,
+        use_cache=use_cache,
+        cache_dir=cache_dir,
     )
     return DataLoader(
         dataset,

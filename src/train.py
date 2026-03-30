@@ -37,9 +37,10 @@ from config import (
     EARLY_STOPPING_PATIENCE, CHECKPOINT_DIR, LOG_DIR,
     BATCH_SIZE, NUM_WORKERS, IMAGE_SIZE, RANDOM_SEED,
     MC_DROPOUT_RATE, NUM_CLASSES, FOCAL_GAMMA, USE_AMP,
+    GRAD_CLIP_NORM, APTOS_PROCESSED_DIR, USE_PREPROCESSED_CACHE,
     seed_everything, setup_directories,
 )
-from model import create_model
+from model import create_model, create_baseline_model
 from dataset import get_train_val_split, create_dataloaders, DRDataset
 from loss import FocalLoss, compute_class_weights
 
@@ -62,10 +63,19 @@ class Trainer:
       hiding data-loading latency behind compute.
     """
 
-    def __init__(self, model, device, fold=0):
+    def __init__(
+        self,
+        model: nn.Module,
+        device: torch.device,
+        fold: int = 0,
+        model_name: str = "cbam_resnet50",
+        grad_clip_norm: float = GRAD_CLIP_NORM,
+    ):
         self.model = model.to(device)
         self.device = device
         self.fold = fold
+        self.model_name = model_name
+        self.grad_clip_norm = grad_clip_norm
 
         # AMP scaler (no-op on CPU; active on CUDA when USE_AMP=True)
         self.scaler = torch.amp.GradScaler(
@@ -77,6 +87,7 @@ class Trainer:
         self.current_epoch = 0
         self.best_kappa = -1.0
         self.epochs_no_improve = 0
+        self.num_epochs = EPOCHS
 
         # Metrics history
         self.history = {
@@ -90,14 +101,14 @@ class Trainer:
     # -----------------------------------------------------------------
 
     def train_epoch(self, train_loader, criterion, optimizer):
-        """Train for one epoch with AMP."""
+        """Train for one epoch with AMP and gradient clipping."""
         self.model.train()
         running_loss = 0.0
         all_preds, all_labels = [], []
 
         pbar = tqdm(
             train_loader,
-            desc=f"Epoch {self.current_epoch + 1}/{EPOCHS} [Train]",
+            desc=f"Epoch {self.current_epoch + 1}/{self.num_epochs} [Train]",
         )
         for images, labels in pbar:
             images = images.to(self.device, non_blocking=True)
@@ -112,8 +123,12 @@ class Trainer:
                 logits = self.model(images)
                 loss = criterion(logits, labels)
 
-            # --- AMP backward ---
+            # --- AMP backward with gradient clipping ---
             self.scaler.scale(loss).backward()
+            self.scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(
+                self.model.parameters(), max_norm=self.grad_clip_norm
+            )
             self.scaler.step(optimizer)
             self.scaler.update()
 
@@ -135,24 +150,25 @@ class Trainer:
 
     @torch.no_grad()
     def validate(self, val_loader, criterion):
-        """Validate with standard (non-MC) inference."""
+        """Validate with deterministic (non-MC) inference."""
         self.model.eval()
         running_loss = 0.0
         all_preds, all_labels, all_probs = [], [], []
 
         pbar = tqdm(
             val_loader,
-            desc=f"Epoch {self.current_epoch + 1}/{EPOCHS} [Val]",
+            desc=f"Epoch {self.current_epoch + 1}/{self.num_epochs} [Val]",
         )
         for images, labels in pbar:
             images = images.to(self.device, non_blocking=True)
             labels = labels.to(self.device, non_blocking=True)
 
-            with torch.amp.autocast(
-                device_type=self.device.type, enabled=self.amp_enabled
-            ):
-                logits = self.model(images)
-                loss = criterion(logits, labels)
+            with self.model.deterministic_mode():
+                with torch.amp.autocast(
+                    device_type=self.device.type, enabled=self.amp_enabled
+                ):
+                    logits = self.model(images)
+                    loss = criterion(logits, labels)
 
             running_loss += loss.item() * images.size(0)
             probs = torch.softmax(logits.float(), dim=1).cpu().numpy()
@@ -193,15 +209,16 @@ class Trainer:
             "scaler_state_dict": self.scaler.state_dict(),
             "best_kappa": self.best_kappa,
             "history": self.history,
+            "model_name": self.model_name,
         }
 
-        last_path = CHECKPOINT_DIR / f"cbam_resnet50_fold{self.fold}_last.pth"
+        last_path = CHECKPOINT_DIR / f"{self.model_name}_fold{self.fold}_last.pth"
         torch.save(checkpoint, last_path)
 
         if is_best:
-            best_path = CHECKPOINT_DIR / f"cbam_resnet50_fold{self.fold}_best.pth"
+            best_path = CHECKPOINT_DIR / f"{self.model_name}_fold{self.fold}_best.pth"
             torch.save(checkpoint, best_path)
-            print(f"  ✓ New best model saved (κ = {self.best_kappa:.4f})")
+            print(f"  New best model saved (kappa = {self.best_kappa:.4f})")
 
     def load_checkpoint(self, path, optimizer=None, scheduler=None):
         """Resume from a checkpoint."""
@@ -228,11 +245,12 @@ class Trainer:
     def fit(self, train_loader, val_loader, criterion, optimizer, scheduler,
             num_epochs=EPOCHS):
         """Full training loop with early stopping."""
+        self.num_epochs = num_epochs
         start_epoch = self.current_epoch
 
         print(f"\n{'=' * 65}")
-        print(f"  CBAM-ResNet50 — Fold {self.fold}")
-        print(f"  Epochs: {start_epoch + 1} → {num_epochs}  |  "
+        print(f"  {self.model_name} - Fold {self.fold}")
+        print(f"  Epochs: {start_epoch + 1} -> {num_epochs}  |  "
               f"AMP: {self.amp_enabled}  |  "
               f"Device: {self.device}")
         print(f"{'=' * 65}\n")
@@ -277,18 +295,18 @@ class Trainer:
 
             # Early stopping
             if self.epochs_no_improve >= EARLY_STOPPING_PATIENCE:
-                print(f"\n  ⚠ Early stopping at epoch {epoch + 1}")
+                print(f"\n  Early stopping at epoch {epoch + 1}")
                 break
 
         print(f"\n{'=' * 65}")
-        print(f"  Training done — Best Val κ: {self.best_kappa:.4f}")
+        print(f"  Training done - Best Val kappa: {self.best_kappa:.4f}")
         print(f"{'=' * 65}\n")
 
         self._save_history()
 
     def _save_history(self):
         """Persist training curves as JSON for later plotting."""
-        path = LOG_DIR / f"cbam_resnet50_fold{self.fold}_history.json"
+        path = LOG_DIR / f"{self.model_name}_fold{self.fold}_history.json"
         with open(path, "w") as f:
             json.dump(self.history, f, indent=2)
         print(f"  History saved to {path}")
@@ -299,14 +317,41 @@ class Trainer:
 # =========================================================================
 
 def main():
-    parser = argparse.ArgumentParser(description="Train CBAM-ResNet50 for DR")
+    parser = argparse.ArgumentParser(description="Train DR detection model")
     parser.add_argument("--epochs", type=int, default=EPOCHS)
     parser.add_argument("--lr", type=float, default=LEARNING_RATE)
     parser.add_argument("--batch_size", type=int, default=BATCH_SIZE)
     parser.add_argument("--fold", type=int, default=0, help="Validation fold (0-4)")
     parser.add_argument("--resume", type=str, default=None,
                         help="Checkpoint path to resume from")
+    parser.add_argument(
+        "--model",
+        type=str,
+        default="cbam",
+        choices=["baseline", "cbam"],
+        help="Model architecture: 'baseline' (ResNet-50) or 'cbam' (CBAM-ResNet50)"
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default=None,
+        help="Path to YAML config file (overrides CLI args)"
+    )
+    parser.add_argument(
+        "--use_cache",
+        action="store_true",
+        default=USE_PREPROCESSED_CACHE,
+        help="Load preprocessed images from data/processed/ cache"
+    )
     args = parser.parse_args()
+
+    # Load config file if provided
+    if args.config:
+        try:
+            from configs.experiment_config import load_config
+            args = load_config(args.config, args)
+        except ImportError:
+            print("Warning: Config system not available, using CLI args")
 
     # ---- Reproducibility ----
     seed_everything(RANDOM_SEED)
@@ -316,34 +361,49 @@ def main():
     print(f"Device: {device}")
     if device.type == "cuda":
         print(f"GPU:    {torch.cuda.get_device_name(0)}")
-        print(f"VRAM:   {torch.cuda.get_device_properties(0).total_mem / 1e9:.1f} GB")
+        print(f"VRAM:   {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
 
     # ---- Data ----
-    print("\nLoading APTOS 2019 data …")
+    print("\nLoading APTOS 2019 data ...")
     df = pd.read_csv(APTOS_TRAIN_CSV)
     train_df, val_df = get_train_val_split(df, val_fold=args.fold)
     print(f"  Train: {len(train_df)}  |  Val: {len(val_df)}")
 
+    use_cache = args.use_cache and APTOS_PROCESSED_DIR.exists()
+    cache_dir = APTOS_PROCESSED_DIR if use_cache else None
+    if use_cache:
+        print(f"  Using preprocessed cache: {APTOS_PROCESSED_DIR}")
+
     train_loader, val_loader = create_dataloaders(
         train_df, val_df, APTOS_TRAIN_IMAGES,
         batch_size=args.batch_size, num_workers=NUM_WORKERS,
+        use_cache=use_cache, cache_dir=cache_dir,
     )
 
-    # ---- Model ----
-    print("\nBuilding CBAM-ResNet50 …")
-    model = create_model(
-        num_classes=NUM_CLASSES,
-        dropout_rate=MC_DROPOUT_RATE,
-        pretrained=True,
-    )
+    # ---- Model Selection ----
+    print(f"\nBuilding {args.model.upper()} model ...")
+    if args.model == "baseline":
+        model = create_baseline_model(
+            num_classes=NUM_CLASSES,
+            dropout_rate=MC_DROPOUT_RATE,
+            pretrained=True,
+        )
+        model_name = "baseline_resnet50"
+    else:
+        model = create_model(
+            num_classes=NUM_CLASSES,
+            dropout_rate=MC_DROPOUT_RATE,
+            pretrained=True,
+        )
+        model_name = "cbam_resnet50"
+
     total_params = sum(p.numel() for p in model.parameters())
     print(f"  Parameters: {total_params:,}")
 
     # ---- Loss (Focal) ----
-    # Compute per-class alpha from training set frequencies
     train_labels = torch.tensor(train_df["diagnosis"].values)
     alpha_weights = compute_class_weights(train_labels, NUM_CLASSES).to(device)
-    print(f"  Class α weights: {alpha_weights.cpu().numpy().round(3)}")
+    print(f"  Class alpha weights: {alpha_weights.cpu().numpy().round(3)}")
 
     criterion = FocalLoss(gamma=FOCAL_GAMMA, alpha=alpha_weights)
 
@@ -356,7 +416,12 @@ def main():
     )
 
     # ---- Trainer ----
-    trainer = Trainer(model, device, fold=args.fold)
+    trainer = Trainer(
+        model, device,
+        fold=args.fold,
+        model_name=model_name,
+        grad_clip_norm=GRAD_CLIP_NORM,
+    )
 
     if args.resume:
         trainer.load_checkpoint(args.resume, optimizer, scheduler)
@@ -366,7 +431,7 @@ def main():
         num_epochs=args.epochs,
     )
 
-    print("\n✓ Training finished!")
+    print("\nTraining finished!")
 
 
 if __name__ == "__main__":

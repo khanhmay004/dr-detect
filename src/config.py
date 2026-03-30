@@ -30,6 +30,10 @@ MESSIDOR_CSV = MESSIDOR_DIR / "messidor-2.csv"
 OUTPUT_DIR = PROJECT_ROOT / "outputs"
 FIGURES_DIR = OUTPUT_DIR / "figures"
 PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
+APTOS_PROCESSED_DIR = PROCESSED_DIR / "aptos"
+MESSIDOR_PROCESSED_DIR = PROCESSED_DIR / "messidor2"
+USE_PREPROCESSED_CACHE = True                # load from data/processed/ if available
+
 CHECKPOINT_DIR = OUTPUT_DIR / "checkpoints"
 LOG_DIR = OUTPUT_DIR / "logs"
 RESULTS_DIR = OUTPUT_DIR / "results"
@@ -92,6 +96,9 @@ EARLY_STOPPING_PATIENCE = 5
 # Focal Loss
 FOCAL_GAMMA = 2.0                           # focusing parameter
 FOCAL_ALPHA = None                          # None = auto-compute from class freq
+
+# Gradient clipping
+GRAD_CLIP_NORM = 1.0                        # max L2 norm for gradient clipping
 
 # Mixed-precision training
 USE_AMP = True                              # halves VRAM for 512×512 inputs

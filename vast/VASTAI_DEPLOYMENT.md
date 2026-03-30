@@ -301,3 +301,223 @@ Sau khi training xong, bạn sẽ có:
 2. So sánh metrics giữa các models (ResNet50 vs EfficientNet)
 3. Analyze confusion matrix để hiểu lỗi của model
 4. Nếu kết quả tốt, có thể train trên 5 folds để ensemble
+   \
+   Bảng biến số cần chuẩn bị, cop từ VAST.AI
+
+5. **IP:** (Ví dụ: `154.57.34.91`)
+
+6. **PORT:** (Ví dụ: `19627`)
+
+7. **SSH KEY:** `C:\Users\ADMIN\.ssh\id_ed25519` (Đường dẫn key trên máy)
+   ![[Pasted image 20251213194325.png]]
+   ![[Pasted image 20251213194303.png]]
+
+---
+
+apt-get update && apt-get install -y zip unzip unrar p7zip-full
+
+# Print the public key
+
+Click dis to create ssh or whaater
+[SSH Connection - Vast.ai Documentation – Affordable GPU Cloud Marketplace](https://docs.vast.ai/documentation/instances/connect/ssh#terminal)
+
+```powershell
+cat ~/.ssh/id_ed25519.pub
+ssh-ed25519 AAAAC3NzaC1lZ9DdI1NTE5AAAAIHWGYlMT8CxcILI/i3DsRvX74HNChkm4JSNFu0wmcv0a
+```
+
+# PHẦN 1: GOOGLE DRIVE <-> VAST.AI (Tốc độ cao nhất)
+
+## 1. Chiều UP (Google Drive -> Vast.ai)
+
+Dùng **`gdown`**
+
+- **Chuẩn bị:** Vào Google Drive -> Chuột phải folder dữ liệu -> Share -> **"Anyone with the link"**.
+
+- **Thực hiện (Trên Terminal Vast.ai):**
+
+```bash
+
+# 1. Cài đặt (Mỗi lần thuê máy mới phải chạy lại dòng này)
+
+pip install gdown
+
+# 2. Tải folder (Thay LINK_DRIVE và TÊN_FOLDER)
+
+gdown --folder "LINK_GOOGLE_DRIVE_CUA_BAN" -O /workspace/ten_folder_data
+
+```
+
+## 2. Chiều DOWN (Vast.ai -> Google Drive)
+
+Dùng **`rclone`**. Bắt buộc phải cấu hình vì `gdown` không upload được.
+![[Pasted image 20251213194046.png]]
+
+- Bước 0: Set up rclone trên máy
+- Vo trong foulder co chua rclone.exe + shift + chuot phai mo powershelll
+  rclone authorize "drive" "eyJzY29wZSI6ImRyaXZlIn0" -
+
+```powershell
+.\rclone.exe authorize "drive" "eyJzY29wZSI6ImRyaXZlIn0"
+```
+
+- **Bước 1: Cài và kết nối (Trên Terminal Vast.ai)**
+
+```bash
+# Cài đặt
+curl https://rclone.org/install.sh | sudo bash
+# Cấu hình (Chỉ cần làm 1 lần mỗi khi thuê máy mới)
+rclone config
+```
+
+- Nhập `n` (New) -> Tên: `gdrive` -> Chọn số `22 (Google Drive).
+
+- Enter liên tục để bỏ qua Client ID/Secret.
+
+- Scope: Chọn `1` (Full access).
+
+- Enter bỏ qua root folder/service account.
+
+- **Edit advanced config:** `n` (No).
+
+- **Use auto config:** **`n` (No)** (Quan trọng!).
+
+- **Copy dòng lệnh** `rclone authorize "drive"` -> Dán vào Terminal máy tính Windows của bạn -> Đăng nhập trình duyệt -> Copy mã code -> Dán lại vào Vast.ai.
+  \*![[Pasted image 20251213193653.png]]
+
+- **Bước 2: Upload dữ liệu (Trên Terminal Vast.ai)**
+
+```powershell
+# Cú pháp: rclone copy <NGUỒN_VAST> <ĐÍCH_DRIVE> -P
+rclone copy /workspace/nlp/ket_qua gdrive:Backup_Vast -P
+```
+
+rclone copy workspace/final_nlp/output.zip gdrive:Output_CsGo -P
+zip -r output.zip /workspace/final_nlp/training/outputs
+_(Cờ `-P` để hiện thanh phần trăm tiến độ)_
+
+---
+
+# WINDOWS <-> VAST.AI (Trực tiếp)
+
+_Dùng khi dữ liệu nằm sẵn trong máy tính hoặc mạng nhà bạn đủ mạnh._
+
+_Lưu ý: Chạy lệnh trên **PowerShell** của Windows._
+
+## 1. Chiều UP (Windows -> Vast.ai)
+
+Dùng lệnh `scp` (Copy qua SSH).
+
+```powershell
+
+# Cú pháp mẫu
+
+scp -P <PORT> -i "<ĐƯỜNG_DẪN_KEY>" -r "<FOLDER_MÁY_TÍNH>" root@<IP>:/workspace/<TÊN_FOLDER_MỚI>
+
+```
+
+**Ví dụ thực tế (Copy dán và thay số):**
+
+```powershell
+
+scp -P 19627 -i "C:\Users\ADMIN\.ssh\id_ed25519" -r "D:\Datasets\nlp_data" root@154.57.34.91:/workspace/nlp_data
+
+```
+
+## 2. Chiều DOWN (Vast.ai -> Windows)Đảo ngược vị trí nguồn và đích của lệnh trên.
+
+```powershell
+
+# Cú pháp mẫu
+
+scp -P <PORT> -i "<ĐƯỜNG_DẪN_KEY>" -r root@<IP>:/workspace/<FOLDER_VAST> "<ĐƯỜNG_DẪN_MÁY_TÍNH>"
+
+```
+
+**Ví dụ thực tế (Copy dán và thay số):**
+
+```powershell
+
+scp -P 19627 -i "C:\Users\ADMIN\.ssh\id_ed25519" -r root@154.57.34.91:/workspace/nlp/ket_qua "C:\Users\ADMIN\Downloads\KetQua_Model"
+
+```
+
+![[Pasted image 20251213194205.png]]
+
+```
+apt-get update && apt-get install -y zip unzip unrar p7zip-full
+```
+
+### 2. Hướng dẫn chi tiết từng loại file
+
+````
+    # Giải nén tại chỗ
+    unzip file_du_lieu.zip
+
+    # Giải nén vào thư mục cụ thể (Ví dụ vào folder /workspace/data)
+    unzip file_du_lieu.zip -d /workspace/data
+    # Cú pháp: zip -r <tên_file_tạo_ra.zip> <folder_muốn_nén>
+    zip -r ket_qua.zip /workspace/nlp/output_folder
+    ```
+
+
+
+#### B. File `.rar`
+
+- **Giải nén (Unrar):**
+
+    Bash
+
+    ```
+    # Giải nén giữ nguyên cấu trúc thư mục
+    unrar x file_du_lieu.rar
+
+    # Giải nén vào đường dẫn cụ thể (Lưu ý không có dấu cách sau folder đích)
+    unrar x file_du_lieu.rar /workspace/data/
+    ```
+
+
+#### C. File `.tar.gz` hoặc `.tgz` (Thường gặp trong dataset Linux)
+
+- **Giải nén (Tar):**
+
+    Bash
+
+    ```
+    # x: extract, z: gzip, v: verbose (hiện tên file), f: file
+    tar -xzvf file_du_lieu.tar.gz
+
+    # Giải nén vào thư mục khác (dùng tham số -C)
+    tar -xzvf file_du_lieu.tar.gz -C /workspace/data
+    ```
+
+
+#### D. File `.7z` (Hoặc file nén nào `unrar` không mở được)
+
+- **Giải nén (7zip):**
+
+    Bash
+
+    ```
+    # x: extract với đường dẫn đầy đủ
+    7z x file_du_lieu.7z
+    ```
+
+````
+
+# Kiểm tra dung lượng còn trống
+
+```
+df -h /workspace/
+
+- **Size:** Tổng dung lượng.
+
+- **Avail:** Dung lượng còn trống (Quan trọng nhất).
+
+
+Nếu giải nén xong mà hết chỗ, nhớ xóa file nén gốc đi:
+
+Bash
+
+rm file_du_lieu.zip
+```

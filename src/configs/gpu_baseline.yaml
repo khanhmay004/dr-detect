@@ -1,0 +1,26 @@
+# GPU Baseline ResNet-50 Configuration
+name: baseline_resnet50_full
+description: Baseline ResNet-50 training on GPU
+
+model_type: baseline
+pretrained: true
+dropout_rate: 0.5
+
+epochs: 20
+learning_rate: 0.0001
+weight_decay: 0.0001
+batch_size: 16
+grad_clip_norm: 1.0
+early_stopping_patience: 5
+
+focal_gamma: 2.0
+use_class_weights: true
+
+image_size: 512
+num_workers: 4
+fold: 0
+
+device: cuda
+use_amp: true
+
+seed: 42

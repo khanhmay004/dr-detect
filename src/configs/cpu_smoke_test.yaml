@@ -1,0 +1,26 @@
+# CPU Smoke Test Configuration
+name: cpu_smoke_test
+description: Quick CPU test to verify code runs correctly
+
+model_type: baseline
+pretrained: true
+dropout_rate: 0.5
+
+epochs: 2
+learning_rate: 0.0001
+weight_decay: 0.0001
+batch_size: 2
+grad_clip_norm: 1.0
+early_stopping_patience: 5
+
+focal_gamma: 2.0
+use_class_weights: true
+
+image_size: 256
+num_workers: 0
+fold: 0
+
+device: cpu
+use_amp: false
+
+seed: 42
