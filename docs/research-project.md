@@ -1,7 +1,7 @@
 # Research Project: Uncertainty-Aware Attention CNN for Diabetic Retinopathy Grading
 
 > **Document Role**: Single source-of-truth for the `dr-detect` project.
-> **Last Updated**: 2026-03-31 (Phase 2 in progress)
+> **Last Updated**: 2026-03-31 (Phase 2 complete, Phase 3 ready)
 > **Project Type**: Bachelor's Thesis — Data Science (Deep Learning in Healthcare)
 > **Timeline**: 1 month (01/03/2026 – 31/03/2026)
 
@@ -540,38 +540,39 @@ src/
 - **Key observation**: Baseline ResNet-50 achieves strong performance, setting a high bar for CBAM ablation study
 - **Messidor-2 smoke tests**: Multiple smoke tests (10 images, T=3) run successfully, validating evaluation pipeline
 
-### 11.3. Phase 2 Progress (In Progress — 2026-03-31)
+### 11.3. Phase 2 Progress (✅ Complete — 2026-03-31)
 
-| Task                                           | Status             | Notes                                   |
-| ---------------------------------------------- | ------------------ | --------------------------------------- |
-| Messidor-2 evaluation smoke tests              | ✅ Complete        | Multiple runs validated (10 img, T=3)  |
-| Checkpoint wildcard path resolution            | ✅ Complete        | Added to evaluate.py                    |
-| Cross-fold stats script bug identification     | ✅ Complete        | Documented baseline fold 0 limitation   |
-| Messidor-2 full evaluation (baseline)          | 🔄 In progress     | Ready to run on GPU                     |
-| GPU CBAM-ResNet50 training (fold 0)            | ⬜ Not started     | Waiting for GPU allocation              |
-| GPU CBAM-ResNet50 training (folds 1-4)         | ⬜ Not started     | —                                       |
+| Task                                           | Status      | Notes |
+| ---------------------------------------------- | ----------- | ----- |
+| Messidor-2 evaluation smoke tests              | ✅ Complete | Multiple runs validated (10 img, T=3) |
+| Checkpoint wildcard path resolution            | ✅ Complete | Added to `evaluate.py` |
+| Cross-fold stats script bug identification     | ✅ Complete | Baseline fold-0-only limitation documented |
+| Messidor-2 full evaluation (baseline, T=20)    | ✅ Complete | 1,744 gradable images |
+| GPU CBAM-ResNet50 training (fold 0)            | ✅ Complete | 20 epochs, runtime ~50 min |
+| Messidor-2 full evaluation (CBAM, T=20)        | ✅ Complete | 1,744 gradable images |
+| Phase-2 artifact consolidation (`phase2-results`) | ✅ Complete | Logs, checkpoints, figures, metrics archived |
 
-### 11.4. Pending Work
+### 11.4. Pending Work (Transition to Phase 3)
 
-| Task                                           | Status             | Priority     | Dependencies                |
-| ---------------------------------------------- | ------------------ | ------------ | --------------------------- |
-| Messidor-2 full evaluation (baseline)          | 🔄 Ready to run    | **Blocking** | Phase 1 complete ✅          |
-| GPU CBAM-ResNet50 training (fold 0)            | ⬜ Not started     | **Blocking** | Phase 1 complete ✅          |
-| GPU CBAM-ResNet50 training (folds 1-4)         | ⬜ Not started     | **Blocking** | Fold 0 CBAM complete        |
-| Cross-fold statistics (mean ± std)             | ⚠️ Baseline N/A   | **Blocking** | CBAM folds 0-4 complete     |
-| ECE / calibration metrics in evaluate.py       | ⬜ Not implemented | High         | —                           |
-| Referral threshold analysis                    | ⬜ Not implemented | High         | Messidor-2 evaluation       |
-| Ablation study (4 model variants)              | ⬜ Not started     | High         | Baseline + CBAM fold 0      |
-| Messidor-2 evaluation (CBAM checkpoint)        | ⬜ Not started     | High         | CBAM training complete      |
-| Uncertainty visualizations                     | ⬜ Not generated   | Medium       | Messidor-2 evaluation       |
-| Publication-quality figure refinement          | ⬜ Not generated   | Medium       | All experiments complete    |
-| Thesis document writing                        | ⬜ Not started     | High         | Core experiments complete   |
+| Task                                           | Status             | Priority | Dependencies |
+| ---------------------------------------------- | ------------------ | -------- | ------------ |
+| ECE + Brier + reliability diagram in `evaluate.py` | ⬜ Not implemented | **Blocking** | Phase 2 metrics available ✅ |
+| Referral threshold analysis (coverage-risk)    | ⬜ Not implemented | **Blocking** | Entropy outputs available ✅ |
+| CBAM folds 1-4 training                        | ⬜ Not started     | High     | Fold 0 complete ✅ |
+| Cross-fold stats for CBAM (mean ± std)         | ⬜ Not started     | High     | CBAM folds 1-4 |
+| 4-model ablation table (A–D)                   | ⬜ Not started     | High     | Phase 3 evaluation scripts |
+| Publication-quality final figures              | ⬜ Not started     | Medium   | Phase 3 results complete |
+| Thesis writing integration                     | ⬜ Not started     | High     | Core experiments complete |
 
-**Next Immediate Steps** (Phase 2):
-1. Run full Messidor-2 external validation on baseline checkpoint (T=20 passes)
-2. Train CBAM-ResNet50 on fold 0 with identical hyperparameters
-3. Compare baseline vs. CBAM performance on both APTOS validation and Messidor-2
-4. **Note**: Baseline cross-fold stats cannot be computed (only trained on fold 0 for time constraints)
+**Phase 2 Outcome Summary (locked for reporting):**
+1. **APTOS fold 0 (best)**:
+   - Baseline: QWK **0.9088**, Acc **84.45%**, AUC **0.9846**
+   - CBAM: QWK **0.8896**, Acc **78.99%**, AUC **0.9831**
+2. **Messidor-2 external (T=20, 1,744 gradable images)**:
+   - Baseline: Acc **0.6399**, QWK **0.6000**, Ref-AUC **0.8911**, Sens **0.4464**, Spec **0.9767**
+   - CBAM: Acc **0.6095**, QWK **0.5777**, Ref-AUC **0.8778**, Sens **0.3720**, Spec **0.9736**
+3. **Interpretation**: Baseline currently outperforms CBAM on both internal fold-0 and external validation.
+4. **Next step**: proceed to **Phase 3 (evaluation + uncertainty calibration + referral analysis)**.
 
 ---
 
@@ -765,29 +766,30 @@ Fixed MCDropout deterministic validation, gradient clipping, progress bar, basel
 - 🔄 Evaluate baseline on Messidor-2 (MC Dropout T=20) — smoke tests complete, ready for full run
 - ⬜ Record external validation metrics: QWK, AUC, accuracy, entropy statistics
 
-### Phase 2: CBAM-ResNet50 Training — 🔄 IN PROGRESS (2026-03-31)
+### Phase 2: CBAM-ResNet50 Training + External Validation — ✅ COMPLETE (2026-03-31)
 
 **Completed**:
-- ✅ Messidor-2 evaluation smoke tests (baseline, 10 images, T=3) — pipeline validated
-- ✅ Fixed checkpoint path wildcards in evaluate.py — improved usability
-- ✅ Identified baseline cross-fold limitation — documented for thesis
+- ✅ Full Messidor-2 evaluation for baseline (T=20)
+- ✅ Trained CBAM-ResNet50 fold 0 (20 epochs, GPU)
+- ✅ Full Messidor-2 evaluation for CBAM (T=20)
+- ✅ Baseline vs CBAM fold-0 and external comparison completed
+- ✅ Phase-2 artifacts archived in `phase2-results/`
 
-**In Progress**:
-- 🔄 Full Messidor-2 baseline evaluation (1,744 images, T=20 passes) — ready to run on GPU
-- ⬜ Train CBAM-ResNet50 fold 0 — awaiting GPU allocation
-- ⬜ Compare baseline vs. CBAM on fold 0
+**Key finding**:
+- Baseline remains stronger than CBAM in current fold-0 evidence.
+- This is a valid negative/neutral ablation result and should be reported transparently.
 
-**Remaining**:
-- ⬜ Train CBAM-ResNet50 folds 1–4
-- ⬜ Compute CBAM cross-fold statistics (mean ± std)
-- ⚠️ Note: Baseline cross-fold stats not possible (only trained on fold 0)
+**Deferred to Phase 3**:
+- CBAM folds 1–4 for robust cross-fold estimate
+- Calibration and referral analysis
 
-### Phase 3: Evaluation & Uncertainty Analysis (Days 6–8)
+### Phase 3: Evaluation & Uncertainty Analysis — 🎯 NEXT PHASE
 
-- Add ECE to evaluate.py + reliability diagram
-- Messidor-2 evaluation (both models)
-- Referral threshold analysis
-- Uncertainty visualizations and case studies
+- Add ECE + Brier score + reliability diagram to `evaluate.py`
+- Implement referral-threshold workflow (coverage vs accuracy/sensitivity/specificity)
+- Run uncertainty-stratified analysis (correct vs incorrect, per-class entropy)
+- Generate final uncertainty figures and case studies for thesis chapter
+- Prepare model-comparison table using calibrated metrics (not only QWK/AUC)
 
 ### Phase 4: Ablation Study (Days 9–10)
 
@@ -829,19 +831,23 @@ Fixed MCDropout deterministic validation, gradient clipping, progress bar, basel
 
 ### 16.2. Messidor-2 External
 
-| Metric               | Baseline  | CBAM-ResNet50 (Expected) |
-| -------------------- | --------- | ------------------------ |
-| Accuracy             | 65–75%    | 68–78%                   |
-| QWK                  | 0.55–0.70 | 0.60–0.75                |
-| Binary Referable AUC | 0.85–0.90 | 0.88–0.93                |
+| Metric               | Baseline (Actual) | CBAM-ResNet50 (Actual) |
+| -------------------- | ----------------- | ---------------------- |
+| Accuracy             | **0.6399**        | **0.6095**             |
+| QWK                  | **0.6000**        | **0.5777**             |
+| Binary Referable AUC | **0.8911**        | **0.8778**             |
+| Referable Sensitivity| **0.4464**        | **0.3720**             |
+| Referable Specificity| **0.9767**        | **0.9736**             |
 
-> **Note**: 5–15% drop from APTOS is expected due to domain shift and is a key discussion point.
+> **Observation**: External drop from APTOS is present as expected under domain shift; baseline currently generalizes better than CBAM.
 
-### 16.3. Uncertainty Metrics (Expected Patterns)
+### 16.3. Uncertainty Metrics (Observed Patterns)
 
-- Incorrectly predicted images should have higher entropy than correct predictions.
-- Boundary classes (Mild, grade 1) should show higher entropy than No DR (grade 0).
-- Inverse correlation between confidence and entropy.
+- Incorrect predictions have higher entropy than correct predictions (both models).
+- Confidence is lower for incorrect predictions (both models).
+- Higher-severity/ambiguous classes show higher entropy than grade 0.
+- Baseline shows lower average entropy and higher confidence than CBAM in current runs.
+- **Calibration metrics (ECE/Brier) are still pending** and will be completed in Phase 3.
 
 ---
 

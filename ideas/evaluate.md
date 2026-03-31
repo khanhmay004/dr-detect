@@ -1,7 +1,7 @@
 # Evaluation: Uncertainty-Aware Attention CNN for DR Grading
 
 > **Skill loaded**: `.agent/skills/research-and-paper/1-evaluate.md`
-> **Evaluation date**: 2026-03-30
+> **Evaluation date**: 2026-03-31 (updated after Phase 2 completion)
 > **Evidence hierarchy**: T1 (DR-specific) → T2 (adjacent medical imaging) → T3 (general DL) → T4 (theoretical) → T5 (inference)
 
 ---
@@ -537,298 +537,83 @@ def create_baseline_model(
 
 ---
 
-## 5. What's Missing for a Complete Thesis
+## 5. What's Missing for a Complete Thesis (After Phase 2)
 
 ### 5.1 Critical Missing Pieces
 
 | # | Missing Item | Impact | Current State |
 |---|---|---|---|
-| 1 | CBAM-ResNet50 training (any fold) | **Blocking** | Not started — only baseline exists |
-| 2 | Messidor-2 evaluation | **Blocking** | Code exists, no checkpoint to evaluate |
-| 3 | ECE / calibration metrics | High | Not implemented |
-| 4 | Referral threshold analysis | High | Not implemented |
-| 5 | Clean ablation (baseline retrained with same pipeline) | High | Baseline used different hyperparams |
-| 6 | Confusion matrix + ROC visualization | Medium | Not generated |
-| 7 | Training curves visualization | Medium | History JSON exists, no plots |
+| 1 | ECE + Brier calibration metrics | **Blocking** | Not implemented |
+| 2 | Reliability diagram | **Blocking** | Not implemented |
+| 3 | Referral threshold analysis | **Blocking** | Not implemented |
+| 4 | CBAM folds 1–4 training | High | Not started (fold 0 complete) |
+| 5 | CBAM cross-fold stats (mean ± std) | High | Not started |
+| 6 | Ablation table A–D with calibrated metrics | High | Not started |
+| 7 | Final publication-quality uncertainty figures | Medium | Partial |
 
-### 5.2 Nice-to-Have Additions
+### 5.2 Phase 2 Outcome Snapshot (Locked)
 
-| # | Addition | Impact | Effort |
-|---|---|---|---|
-| A | Ordinal loss ablation (CORN / ordinal CE) | High — closes Gap 1 | Medium |
-| B | Backbone-level MC Dropout | Medium — improves uncertainty | Low |
-| C | Grad-CAM / attention map visualization | Medium — interpretability | Low |
-| D | Label smoothing comparison | Low | Low |
+| Dataset | Metric | Baseline | CBAM | Delta (CBAM - Base) |
+|---|---:|---:|---:|---:|
+| APTOS val fold 0 | QWK | 0.9088 | 0.8896 | -0.0192 |
+| APTOS val fold 0 | Accuracy | 0.8445 | 0.7899 | -0.0546 |
+| APTOS val fold 0 | AUC | 0.9846 | 0.9831 | -0.0015 |
+| Messidor-2 | Accuracy | 0.6399 | 0.6095 | -0.0304 |
+| Messidor-2 | QWK | 0.6000 | 0.5777 | -0.0223 |
+| Messidor-2 | Referable AUC | 0.8911 | 0.8778 | -0.0133 |
+| Messidor-2 | Referable Sens | 0.4464 | 0.3720 | -0.0744 |
+| Messidor-2 | Referable Spec | 0.9767 | 0.9736 | -0.0031 |
 
----
-
-## 6. Detailed TODO List — Phased Implementation Plan
-
-### Phase 0: Infrastructure Fixes (Day 1)
-> Fix code issues that affect all subsequent experiments.
-
-- [ ] **0.1** Fix MCDropout deterministic validation
-  - Modify `MCDropout` in `model.py` to support `mc_active` toggle (see Issue 1 fix)
-  - Add `deterministic_mode()` context manager to `CBAMResNet50`
-  - Update `Trainer.validate()` in `train.py` to use `deterministic_mode()`
-  - Test: run 2 validation passes on same data → outputs must be identical
-
-- [ ] **0.2** Add gradient clipping to training loop
-  - Add `scaler.unscale_()` + `clip_grad_norm_(1.0)` in `train.py` (see Issue 3 fix)
-
-- [ ] **0.3** Fix progress bar epoch display
-  - Store `num_epochs` in Trainer, use it in tqdm descriptions (see Issue 6 fix)
-
-- [ ] **0.4** Add baseline model factory
-  - Create `create_baseline_model()` in `model.py` (see Issue 7 fix)
-  - Ensure same head structure (MCDropout + Linear) as CBAM model
-
-- [ ] **0.5** Add `--model` CLI argument to `train.py`
-  - Support `--model baseline` and `--model cbam` to select architecture
-  - Default to `cbam`
+Interpretation: baseline currently outperforms CBAM in both internal fold-0 and external validation.
 
 ---
 
-### Phase 1: Baseline Retraining (Day 2)
-> Create a clean baseline with identical pipeline to CBAM model.
+## 6. Detailed TODO List — Phase 3 Execution (Current)
 
-- [ ] **1.1** Retrain baseline ResNet-50 (fold 0)
-  - Use `python train.py --model baseline --fold 0 --epochs 20`
-  - Must use GPU with batch_size=16
-  - Save checkpoint as `baseline_resnet50_fold0_best.pth`
+### Phase 3A — Calibration Instrumentation
 
-- [ ] **1.2** Record baseline metrics
-  - Val QWK, Val AUC, Val Accuracy after 20 epochs
-  - Save training history JSON
+- [ ] Implement `compute_ece(mean_probs, labels, n_bins=15)` in `evaluate.py`
+- [ ] Implement Brier score for multiclass (`np.mean(np.sum((p - y_onehot)^2, axis=1))`)
+- [ ] Add ECE/Brier to output JSON
+- [ ] Add reliability diagram plotting helper
 
-- [ ] **1.3** Evaluate baseline on Messidor-2
-  - Use `python evaluate.py --checkpoint baseline_best.pth`
-  - Record: QWK, AUC, accuracy, entropy statistics
+### Phase 3B — Re-evaluation with Calibration
 
----
+- [ ] Re-run Messidor-2 eval for baseline with calibration outputs
+- [ ] Re-run Messidor-2 eval for CBAM with calibration outputs
+- [ ] Build baseline-vs-CBAM table including ECE/Brier
 
-### Phase 2: CBAM-ResNet50 Training (Days 3–5)
-> Train the proposed model and validate improvement over baseline.
+### Phase 3C — Referral Policy Analysis
 
-- [ ] **2.1** Train CBAM-ResNet50 (fold 0)
-  - `python train.py --model cbam --fold 0 --epochs 20`
-  - Monitor training curves for overfitting (val_loss divergence)
+- [ ] Add entropy-threshold sweep (e.g., percentile thresholds 50/60/70/80/90/95)
+- [ ] Compute coverage, accuracy-at-coverage, referable sensitivity, referable specificity
+- [ ] Select candidate operating thresholds for “auto-accept vs refer-to-human”
+- [ ] Save referral curve figures and CSV summaries
 
-- [ ] **2.2** Compare fold 0: baseline vs. CBAM
-  - Create comparison table: QWK, AUC, accuracy
-  - Check statistical significance (bootstrap CI or check if difference > noise)
+### Phase 3D — Robustness and Reporting
 
-- [ ] **2.3** Train CBAM-ResNet50 (folds 1–4)
-  - Run all folds sequentially or parallel
-  - Record per-fold metrics
-
-- [ ] **2.4** Compute cross-fold statistics
-  - Mean ± std for QWK, AUC, accuracy across 5 folds
-  - This provides confidence intervals for the main results table
+- [ ] Train CBAM folds 1–4
+- [ ] Run `compute_cross_fold_stats.py` for CBAM (mean ± std, per-class metrics)
+- [ ] Update thesis result tables with fold statistics
+- [ ] Document negative/neutral CBAM result transparently if trend persists
 
 ---
 
-### Phase 3: Evaluation & Uncertainty Analysis (Days 6–8)
-> External validation + uncertainty quantification.
-
-- [ ] **3.1** Add ECE computation to `evaluate.py`
-  - Implement `compute_ece()` function (see Section 3 code)
-  - Add ECE to metrics JSON output
-  - Add reliability diagram plot
-
-- [ ] **3.2** Evaluate CBAM-ResNet50 on Messidor-2
-  - MC Dropout inference with T=20 passes
-  - Record: QWK, AUC, accuracy, ECE, mean entropy
-
-- [ ] **3.3** Evaluate baseline on Messidor-2
-  - Same pipeline, baseline checkpoint
-  - Record same metrics for comparison
-
-- [ ] **3.4** Generate uncertainty visualizations
-  - Entropy histogram (colored by predicted grade) — already implemented ✅
-  - Confidence vs. entropy scatter — already implemented ✅
-  - Reliability diagram — to implement (see Section 3 code)
-  - Per-class entropy box plot — to implement
-
-- [ ] **3.5** Implement referral threshold analysis
-  - `compute_referral_curve()` function (see Section 3 code)
-  - Plot: coverage vs. accuracy at different entropy thresholds
-  - Identify optimal threshold: best accuracy at ≥85% coverage
-  - Report sensitivity/specificity at the optimal threshold
-
-- [ ] **3.6** Case studies
-  - Select 4–6 images from Messidor-2:
-    - 2 correct + low entropy (model is right and confident)
-    - 2 correct + high entropy (model is right but unsure)
-    - 2 incorrect + high entropy (model is wrong and knows it)
-  - For each: show fundus image, predicted distribution, entropy value
-  - Discuss clinical implications
-
----
-
-### Phase 4: Ablation Study (Days 9–10)
-> Isolate the contribution of each component.
-
-- [ ] **4.1** Design ablation table
-
-  | Model | CBAM | Focal Loss | MC Dropout | QWK | AUC | ECE |
-  |---|---|---|---|---|---|---|
-  | A. ResNet-50 + CE | ✗ | ✗ | ✗ | — | — | — |
-  | B. ResNet-50 + Focal | ✗ | ✓ | ✗ | — | — | — |
-  | C. CBAM-ResNet50 + Focal | ✓ | ✓ | ✗ | — | — | — |
-  | D. CBAM-ResNet50 + Focal + MC | ✓ | ✓ | ✓ | — | — | — |
-
-  Each row adds exactly one component. The delta between adjacent rows isolates that component's contribution.
-
-- [ ] **4.2** Train models A–C (fold 0 only — ablation on 1 fold is acceptable)
-  - Model A: baseline + standard CE loss
-  - Model B: baseline + Focal Loss
-  - Model C: CBAM-ResNet50 + Focal Loss (deterministic eval, no MC at inference)
-  - Model D: CBAM-ResNet50 + Focal Loss + MC Dropout (already from Phase 2)
-
-- [ ] **4.3** Evaluate all 4 models on APTOS val fold 0 + Messidor-2
-  - Fill in the ablation table
-  - Write 1-paragraph interpretation per row delta
-
----
-
-### Phase 5: Visualization & Figures (Days 11–12)
-> Publication-quality figures for the thesis document.
-
-- [ ] **5.1** Training curves
-  - Loss (train/val) + QWK across epochs for baseline and CBAM
-  - Overlay both models on the same plot
-
-- [ ] **5.2** Confusion matrices
-  - APTOS validation (baseline vs. CBAM) — side by side
-  - Messidor-2 (baseline vs. CBAM) — side by side
-
-- [ ] **5.3** ROC curves
-  - Per-class one-vs-rest ROC for CBAM model
-  - Binary referable ROC (grades ≥ 2) for both models
-
-- [ ] **5.4** Uncertainty figures
-  - Entropy histogram ✅ (exists)
-  - Confidence vs. entropy scatter ✅ (exists)
-  - Reliability diagram (to implement)
-  - Referral coverage-accuracy curve (to implement)
-  - Per-class entropy box plot (to implement)
-  - Entropy: correct vs. incorrect predictions (violin plot)
-
-- [ ] **5.5** Architecture diagram
-  - Clean diagram of CBAM-ResNet50 for the thesis
-  - Can be done in draw.io or tikz
-
----
-
-### Phase 6: Additional Experiments (Days 13–14, if time permits)
-> These close literature gaps and strengthen the thesis beyond minimum requirements.
-
-- [ ] **6.1** Ordinal loss experiment (Gap 1)
-  - Implement CORN loss or ordinal cross-entropy in `loss.py`
-  - Train fold 0 with ordinal loss, compare QWK vs. Focal Loss
-  - This is a clean, novel ablation
-
-- [ ] **6.2** Backbone-level MC Dropout experiment
-  - Add `MCDropout(p=0.1)` before avg-pool (see Failure Mode 2 fix)
-  - Compare ECE: head-only dropout vs. backbone+head dropout
-  - If ECE improves → report as a finding
-
-- [ ] **6.3** Grad-CAM attention maps
-  - Generate Grad-CAM heatmaps for selected Messidor-2 images
-  - Compare CBAM model vs. baseline attention patterns
-  - Show that CBAM focuses on lesion regions more than baseline
-
----
-
-### Phase 7: Thesis Writing (Days 15–20)
-> Parallel with final experiments.
-
-- [ ] **7.1** Chapter 1 — Introduction
-  - DR clinical background, AI motivation, research objectives
-  - Cite: Alyoubi 2020 (historical), FDA meta-analysis 2025 (deployment bar)
-
-- [ ] **7.2** Chapter 2 — Literature Review
-  - ResNet (He 2015), CBAM (Woo 2018), MC Dropout (Gal 2016), Focal Loss (Lin 2017)
-  - DR-specific: MediDRNet (Teng 2024), IDANet (Bhati 2024), RETFound (Zhou 2023)
-  - Survey: Chopra 2025 ("From Retinal Pixels to Patients")
-  - Reproducibility: Voets 2019
-
-- [ ] **7.3** Chapter 3 — Methodology
-  - Architecture diagram + component descriptions
-  - Preprocessing pipeline (Ben Graham)
-  - Training procedure (Focal Loss, AdamW, CosineAnnealing, AMP)
-  - Evaluation protocol (5-fold CV, external validation, MC Dropout inference)
-
-- [ ] **7.4** Chapter 4 — Results
-  - Main results table (baseline vs. CBAM, APTOS + Messidor-2)
-  - Ablation table
-  - Uncertainty analysis results
-  - All figures
-
-- [ ] **7.5** Chapter 5 — Discussion
-  - CBAM contribution analysis
-  - Uncertainty calibration analysis (ECE)
-  - Domain shift discussion (APTOS → Messidor-2)
-  - Limitations:
-    - Per-image not per-patient splits (APTOS limitation)
-    - Single-layer MC Dropout may underestimate uncertainty
-    - CBAM spatial attention too coarse at deep layers for MA localisation
-    - Label noise in APTOS interacts with Focal Loss
-  - Comparison with SOTA (IDANet, MediDRNet, RETFound)
-
-- [ ] **7.6** Chapter 6 — Conclusion & Future Work
-  - Summarise contributions
-  - Future: ordinal losses, deeper MC Dropout, lesion segmentation (MTL), DeepDR Plus progression prediction
-
-- [ ] **7.7** References & Appendix
-  - Format all 30+ citations
-  - Code appendix (key functions)
-
----
-
-### Phase 8: Final Polish (Days 21–22)
-> Code cleanup, documentation, and submission.
-
-- [ ] **8.1** Clean codebase
-  - Add/verify Google-style docstrings on all functions
-  - Run `black` + `flake8` on all `.py` files
-  - Remove unused imports
-
-- [ ] **8.2** Write `README.md`
-  - Reproduce instructions
-  - Environment setup
-  - Training + evaluation commands
-
-- [ ] **8.3** Final thesis review
-  - Proofread all chapters
-  - Verify all figures referenced correctly
-  - Check citation completeness
-
-- [ ] **8.4** Submit
-
----
-
-## 7. Risk Assessment Summary
+## 7. Risk Assessment Summary (Post-Phase 2)
 
 | Risk | Probability | Impact | Mitigation |
 |---|---|---|---|
-| GPU not available for full training | Medium | **Blocking** | Use Vast.ai ($5–7 total), or reduce to 1–2 folds |
-| CBAM shows no improvement over baseline | Medium | High | Frame as a negative result with ablation analysis — still publishable |
-| Messidor-2 performance very low (QWK < 0.5) | Medium | Medium | Expected due to domain shift — frame as discussion point, not failure |
-| MC Dropout entropy poorly calibrated | High | Medium | Report ECE honestly; propose backbone-level dropout as fix |
-| Time runs out before all 5 folds trained | High | Low | 1 fold + external validation is sufficient for bachelor's; note as limitation |
-| Focal Loss overfits to APTOS label noise | Low | Medium | Monitor per-class loss; add label smoothing ablation if detected |
+| Calibration metrics remain missing | Medium | **Blocking** | Prioritize Phase 3A before new experiments |
+| CBAM remains below baseline after more folds | Medium | High | Present as valid negative result; emphasize reproducibility and uncertainty |
+| Low referable sensitivity remains unresolved | Medium | High | Use referral-threshold analysis, report screening-safe operating points |
+| Time runs out before full CBAM folds | High | Medium | Minimum deliverable: calibrated fold-0 + external + referral analysis |
 
 ---
 
-## 8. Final Recommendations — Priority Order
+## 8. Final Recommendations — Priority Order (Now)
 
-1. **Fix MC Dropout validation stochasticity** (Issue 1) — affects all training results
-2. **Retrain baseline with identical pipeline** (Issue 7) — ablation is invalid without this
-3. **Train CBAM-ResNet50 on GPU** — the thesis has no results without this
-4. **Add ECE to evaluate.py** — closes the highest-impact literature gap with minimal code
-5. **Implement referral threshold analysis** — this is the clinical contribution that distinguishes your thesis
-6. **Run Messidor-2 evaluation** — external validation is what makes this thesis above-average
-7. **Generate publication-quality figures** — visualisation is a significant portion of the thesis grade
-8. **Write the thesis** — allocate at least 5 full days for writing, not just the last 2
+1. Add calibration metrics (ECE/Brier + reliability diagram) first.
+2. Re-run baseline + CBAM Messidor with calibrated outputs.
+3. Implement referral-threshold analysis and coverage-risk curves.
+4. Train CBAM folds 1–4 for robust confidence intervals.
+5. Finalize ablation and thesis tables with calibrated uncertainty reporting.

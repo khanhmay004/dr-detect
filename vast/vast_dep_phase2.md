@@ -91,7 +91,7 @@ cd /workspace/dr-detect
 # Replace <FOLDER_ID> with the ID from your Google Drive link
 gdown --folder "https://drive.google.com/drive/folders/1lVD77X95Ucpp0npsHUY3AXHyykulkVbP" -O /workspace/dr-detect/data_dr
 ```
-
+gdown --folder "https://drive.google.com/drive/folders/1wWksYeedVRBHFw342Ps-HEIjpFy2Pmvd" -O /workspace/dr-detect/data_dr
 ### 3.3 Extract and arrange datasets
 
 ```bash

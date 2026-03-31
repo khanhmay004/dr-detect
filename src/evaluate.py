@@ -151,6 +151,42 @@ def mc_dropout_inference(
 #  Metrics (when ground-truth labels are available)
 # =========================================================================
 
+def compute_ece(
+    mean_probs: np.ndarray,
+    labels: np.ndarray,
+    n_bins: int = 15,
+) -> float:
+    """Compute Expected Calibration Error (ECE)."""
+    confidences = mean_probs.max(axis=1)
+    predictions = mean_probs.argmax(axis=1)
+    accuracies = (predictions == labels).astype(float)
+
+    bin_edges = np.linspace(0.0, 1.0, n_bins + 1)
+    ece = 0.0
+    for bin_idx in range(n_bins):
+        in_bin = (confidences > bin_edges[bin_idx]) & (
+            confidences <= bin_edges[bin_idx + 1]
+        )
+        bin_fraction = in_bin.mean()
+        if bin_fraction == 0.0:
+            continue
+        bin_accuracy = accuracies[in_bin].mean()
+        bin_confidence = confidences[in_bin].mean()
+        ece += abs(bin_accuracy - bin_confidence) * bin_fraction
+    return float(ece)
+
+
+def compute_brier_score(
+    mean_probs: np.ndarray,
+    labels: np.ndarray,
+    num_classes: int,
+) -> float:
+    """Compute multiclass Brier score."""
+    one_hot = np.eye(num_classes, dtype=np.float32)[labels]
+    brier = np.mean(np.sum((mean_probs - one_hot) ** 2, axis=1))
+    return float(brier)
+
+
 def compute_metrics(labels: np.ndarray, predictions: np.ndarray, mean_probs: np.ndarray) -> dict:
     """Compute standard classification metrics including binary referable DR metrics.
 
@@ -210,6 +246,132 @@ def compute_metrics(labels: np.ndarray, predictions: np.ndarray, mean_probs: np.
 # =========================================================================
 #  Visualization
 # =========================================================================
+
+def plot_reliability_diagram(
+    mean_probs: np.ndarray,
+    labels: np.ndarray,
+    n_bins: int = 15,
+    save_path: Path | None = None,
+):
+    """Reliability diagram for confidence calibration."""
+    confidences = mean_probs.max(axis=1)
+    predictions = mean_probs.argmax(axis=1)
+    accuracies = (predictions == labels).astype(float)
+
+    bin_edges = np.linspace(0.0, 1.0, n_bins + 1)
+    bin_confidences = []
+    bin_accuracies = []
+
+    for bin_idx in range(n_bins):
+        in_bin = (confidences > bin_edges[bin_idx]) & (
+            confidences <= bin_edges[bin_idx + 1]
+        )
+        if in_bin.any():
+            bin_confidences.append(float(confidences[in_bin].mean()))
+            bin_accuracies.append(float(accuracies[in_bin].mean()))
+
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.plot([0, 1], [0, 1], "--", color="gray", label="Perfect calibration")
+    ax.plot(bin_confidences, bin_accuracies, marker="o", color="#1f77b4", label="Model")
+    ax.set_xlabel("Confidence", fontsize=12)
+    ax.set_ylabel("Accuracy", fontsize=12)
+    ax.set_title("Reliability Diagram", fontsize=14, fontweight="bold")
+    ax.legend(fontsize=10)
+    ax.grid(alpha=0.3)
+    plt.tight_layout()
+
+    if save_path:
+        fig.savefig(save_path, dpi=300, bbox_inches="tight")
+        print(f"  Saved: {save_path}")
+    plt.close(fig)
+
+
+def compute_referral_curve(
+    entropy: np.ndarray,
+    labels: np.ndarray,
+    predictions: np.ndarray,
+    referable_threshold: int = 2,
+    quantiles: list[float] | None = None,
+) -> pd.DataFrame:
+    """Compute coverage-performance tradeoff across entropy thresholds."""
+    if quantiles is None:
+        quantiles = [0.50, 0.60, 0.70, 0.80, 0.90, 0.95]
+
+    records: list[dict[str, float]] = []
+    for quantile in quantiles:
+        entropy_threshold = float(np.quantile(entropy, quantile))
+        keep_mask = entropy <= entropy_threshold
+        if keep_mask.sum() == 0:
+            continue
+
+        kept_labels = labels[keep_mask]
+        kept_preds = predictions[keep_mask]
+        coverage = float(keep_mask.mean())
+        accuracy = float((kept_labels == kept_preds).mean())
+
+        kept_binary_labels = (kept_labels >= referable_threshold).astype(int)
+        kept_binary_preds = (kept_preds >= referable_threshold).astype(int)
+
+        tn, fp, fn, tp = np.array([
+            ((kept_binary_labels == 0) & (kept_binary_preds == 0)).sum(),
+            ((kept_binary_labels == 0) & (kept_binary_preds == 1)).sum(),
+            ((kept_binary_labels == 1) & (kept_binary_preds == 0)).sum(),
+            ((kept_binary_labels == 1) & (kept_binary_preds == 1)).sum(),
+        ], dtype=np.float64)
+
+        referable_sens = float(tp / (tp + fn)) if (tp + fn) > 0 else 0.0
+        referable_spec = float(tn / (tn + fp)) if (tn + fp) > 0 else 0.0
+
+        records.append({
+            "quantile": float(quantile),
+            "entropy_threshold": entropy_threshold,
+            "coverage": coverage,
+            "accuracy": accuracy,
+            "referable_sensitivity": referable_sens,
+            "referable_specificity": referable_spec,
+        })
+
+    return pd.DataFrame(records).sort_values("coverage").reset_index(drop=True)
+
+
+def plot_referral_curve(referral_df: pd.DataFrame, save_path: Path | None = None):
+    """Plot coverage vs accuracy/sensitivity/specificity."""
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    ax.plot(
+        referral_df["coverage"],
+        referral_df["accuracy"],
+        marker="o",
+        label="Accuracy",
+        color="#1f77b4",
+    )
+    ax.plot(
+        referral_df["coverage"],
+        referral_df["referable_sensitivity"],
+        marker="o",
+        label="Referable Sensitivity",
+        color="#e74c3c",
+    )
+    ax.plot(
+        referral_df["coverage"],
+        referral_df["referable_specificity"],
+        marker="o",
+        label="Referable Specificity",
+        color="#2ecc71",
+    )
+
+    ax.set_xlabel("Coverage (fraction auto-accepted)", fontsize=12)
+    ax.set_ylabel("Metric value", fontsize=12)
+    ax.set_title("Referral Threshold Analysis", fontsize=14, fontweight="bold")
+    ax.set_ylim(0.0, 1.0)
+    ax.legend(fontsize=10)
+    ax.grid(alpha=0.3)
+    plt.tight_layout()
+
+    if save_path:
+        fig.savefig(save_path, dpi=300, bbox_inches="tight")
+        print(f"  Saved: {save_path}")
+    plt.close(fig)
 
 def plot_uncertainty_histogram(entropy, predictions, save_path=None):
     """Histogram of predictive entropy, colored by predicted DR grade."""
@@ -312,6 +474,8 @@ def main():
                         help="Set if Messidor-2 CSV has no ground-truth grades")
     parser.add_argument("--max_images", type=int, default=None,
                         help="Limit dataset to N images (for smoke testing)")
+    parser.add_argument("--ece_bins", type=int, default=15,
+                        help="Number of confidence bins for ECE/reliability")
     args = parser.parse_args()
 
     # ---- Resolve checkpoint path (support wildcards) ----
@@ -398,9 +562,22 @@ def main():
     save_results_csv(results, csv_path)
 
     # ---- Metrics (if labels available) ----
+    referral_df = None
     if not args.no_labels and (results["labels"] >= 0).all():
         metrics = compute_metrics(
             results["labels"], results["predictions"], results["mean_probs"],
+        )
+        metrics["ece"] = compute_ece(
+            results["mean_probs"], results["labels"], n_bins=args.ece_bins
+        )
+        metrics["brier_score"] = compute_brier_score(
+            results["mean_probs"], results["labels"], num_classes=NUM_CLASSES
+        )
+        metrics["ece_bins"] = int(args.ece_bins)
+        referral_df = compute_referral_curve(
+            entropy=results["entropy"],
+            labels=results["labels"],
+            predictions=results["predictions"],
         )
         print(f"\n{'=' * 50}")
         print("  MESSIDOR-2 EVALUATION")
@@ -410,6 +587,8 @@ def main():
         print(f"  Referable DR AUC:  {metrics['binary_referable_auc']:.4f}")
         print(f"  Referable DR Sens: {metrics['binary_referable_sens']:.4f}")
         print(f"  Referable DR Spec: {metrics['binary_referable_spec']:.4f}")
+        print(f"  ECE ({args.ece_bins} bins):    {metrics['ece']:.4f}")
+        print(f"  Brier score:       {metrics['brier_score']:.4f}")
 
         # Save metrics JSON with run metadata
         metrics_path = RESULTS_DIR / f"{run_tag}_metrics.json"
@@ -444,6 +623,21 @@ def main():
         results["confidence"], results["entropy"], results["predictions"],
         save_path=FIGURES_DIR / f"{run_tag}_conf_vs_ent.png",
     )
+    if not args.no_labels and (results["labels"] >= 0).all():
+        plot_reliability_diagram(
+            results["mean_probs"],
+            results["labels"],
+            n_bins=args.ece_bins,
+            save_path=FIGURES_DIR / f"{run_tag}_reliability.png",
+        )
+        if referral_df is not None and not referral_df.empty:
+            referral_path = RESULTS_DIR / f"{run_tag}_referral_curve.csv"
+            referral_df.to_csv(referral_path, index=False)
+            print(f"  Referral CSV: {referral_path}")
+            plot_referral_curve(
+                referral_df,
+                save_path=FIGURES_DIR / f"{run_tag}_referral_curve.png",
+            )
 
     # ---- Summary statistics ----
     print(f"\n{'=' * 50}")

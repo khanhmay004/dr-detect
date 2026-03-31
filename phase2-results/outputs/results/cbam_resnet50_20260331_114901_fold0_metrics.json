@@ -1,0 +1,85 @@
+{
+  "run_info": {
+    "run_tag": "cbam_resnet50_20260331_114901_fold0",
+    "model_name": "cbam_resnet50",
+    "fold": 0,
+    "timestamp": "20260331_114901",
+    "start_time": "2026-03-31T11:49:01.275189",
+    "end_time": "2026-03-31T12:39:29.084990",
+    "runtime_seconds": 3027.8098006248474,
+    "runtime_formatted": "00:50:27"
+  },
+  "best_metrics": {
+    "epoch": 17,
+    "val_kappa": 0.889575848472602,
+    "val_acc": 0.7899045020463847,
+    "val_auc": 0.98307490550027,
+    "val_sens": 0.8791946308724832,
+    "val_spec": 0.9517241379310345,
+    "val_loss": 0.3715941718135329,
+    "train_acc": 0.7882513661202186,
+    "train_loss": 0.3967640052968302,
+    "val_f1_macro": 0.6281771189634006,
+    "val_f1_per_class": [
+      0.9874125874125874,
+      0.611764705882353,
+      0.6807387862796834,
+      0.3218390804597701,
+      0.5391304347826087
+    ],
+    "val_recall_per_class": [
+      0.9778393351800554,
+      0.7027027027027027,
+      0.645,
+      0.358974358974359,
+      0.5254237288135594
+    ],
+    "val_precision_per_class": [
+      0.9971751412429378,
+      0.5416666666666666,
+      0.7206703910614525,
+      0.2916666666666667,
+      0.5535714285714286
+    ]
+  },
+  "final_metrics": {
+    "epoch": 20,
+    "val_kappa": 0.8883518482132796,
+    "val_acc": 0.7953615279672579,
+    "val_auc": 0.9833603332561908,
+    "val_sens": 0.8422818791946308,
+    "val_spec": 0.9724137931034482,
+    "val_loss": 0.3733344003253224,
+    "train_acc": 0.7691256830601093,
+    "train_loss": 0.3988158867276948
+  },
+  "hyperparameters": {
+    "epochs": 20,
+    "batch_size": 16,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0001,
+    "focal_gamma": 2.0,
+    "image_size": 512,
+    "dropout_rate": 0.5,
+    "grad_clip_norm": 1.0,
+    "optimizer": "AdamW",
+    "scheduler": "CosineAnnealingLR",
+    "seed": 42,
+    "n_folds": 5,
+    "train_size": 2929,
+    "val_size": 733,
+    "total_params": 24214989
+  },
+  "training_config": {
+    "epochs_requested": 20,
+    "epochs_completed": 20,
+    "early_stopped": false,
+    "device": "cuda",
+    "amp_enabled": true,
+    "grad_clip_norm": 1.0
+  },
+  "checkpoints": {
+    "best": "cbam_resnet50_20260331_114901_fold0_best.pth",
+    "last": "cbam_resnet50_20260331_114901_fold0_last.pth"
+  }
+}
