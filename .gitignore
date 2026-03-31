@@ -9,6 +9,7 @@ aptos/
 messidor-2/
 data/
 dr-results/
+phase2-results/
 *.csv
 *.zip
 *.tar.gz
