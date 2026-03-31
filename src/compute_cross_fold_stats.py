@@ -87,7 +87,7 @@ def compute_best_metrics_from_history(history: dict) -> dict:
     val_kappa = history["val_kappa"]
     best_idx = np.argmax(val_kappa)
 
-    return {
+    result = {
         "best_epoch": int(best_idx + 1),
         "val_kappa": float(val_kappa[best_idx]),
         "val_acc": float(history["val_acc"][best_idx]),
@@ -97,7 +97,13 @@ def compute_best_metrics_from_history(history: dict) -> dict:
         "val_loss": float(history["val_loss"][best_idx]),
         "train_acc": float(history["train_acc"][best_idx]),
         "train_loss": float(history["train_loss"][best_idx]),
+        # Per-class metrics at best epoch (stored as list-of-lists: epoch x class)
+        "val_f1_macro": float(history["val_f1_macro"][best_idx]) if "val_f1_macro" in history else None,
+        "val_f1_per_class": history["val_f1_per_class"][best_idx] if "val_f1_per_class" in history else None,
+        "val_recall_per_class": history["val_recall_per_class"][best_idx] if "val_recall_per_class" in history else None,
+        "val_precision_per_class": history["val_precision_per_class"][best_idx] if "val_precision_per_class" in history else None,
     }
+    return result
 
 
 def extract_metrics_from_json(metrics: dict) -> dict:
@@ -118,6 +124,11 @@ def extract_metrics_from_json(metrics: dict) -> dict:
         "runtime_seconds": run_info.get("runtime_seconds", 0),
         "runtime_formatted": run_info.get("runtime_formatted", ""),
         "run_tag": run_info.get("run_tag", ""),
+        # Per-class metrics
+        "val_f1_macro": best.get("val_f1_macro"),
+        "val_f1_per_class": best.get("val_f1_per_class"),
+        "val_recall_per_class": best.get("val_recall_per_class"),
+        "val_precision_per_class": best.get("val_precision_per_class"),
     }
 
 
@@ -169,13 +180,15 @@ def main():
         print("\n  Error: No folds found")
         return
 
-    # Compute statistics
+    # ----------------------------------------------------------------
+    # Aggregate scalar metrics
+    # ----------------------------------------------------------------
     kappas = [m["val_kappa"] for m in fold_metrics]
     accs = [m["val_acc"] for m in fold_metrics]
     aucs = [m["val_auc"] for m in fold_metrics]
-    # Sens/Spec may be None for older history files
     sens_list = [m["val_sens"] for m in fold_metrics if m.get("val_sens") is not None]
     spec_list = [m["val_spec"] for m in fold_metrics if m.get("val_spec") is not None]
+    f1_macro_list = [m["val_f1_macro"] for m in fold_metrics if m.get("val_f1_macro") is not None]
 
     print(f"\n{'-' * 60}")
     print(f"  SUMMARY ({len(fold_metrics)} folds)")
@@ -187,6 +200,43 @@ def main():
         print(f"  Val Sens:     {np.mean(sens_list):.4f} +/- {np.std(sens_list):.4f}")
     if spec_list:
         print(f"  Val Spec:     {np.mean(spec_list):.4f} +/- {np.std(spec_list):.4f}")
+    if f1_macro_list:
+        print(f"  Val F1-macro: {np.mean(f1_macro_list):.4f} +/- {np.std(f1_macro_list):.4f}")
+
+    # ----------------------------------------------------------------
+    # Per-class F1 / Recall / Precision table
+    # ----------------------------------------------------------------
+    GRADE_NAMES = ["No DR (0)", "Mild (1)", "Moderate (2)", "Severe (3)", "PDR (4)"]
+    N_CLASSES = 5
+
+    # Collect per-class arrays: shape (n_folds, n_classes)
+    f1_grid        = [m["val_f1_per_class"]        for m in fold_metrics if m.get("val_f1_per_class") is not None]
+    recall_grid    = [m["val_recall_per_class"]    for m in fold_metrics if m.get("val_recall_per_class") is not None]
+    precision_grid = [m["val_precision_per_class"] for m in fold_metrics if m.get("val_precision_per_class") is not None]
+
+    if f1_grid:
+        f1_arr  = np.array(f1_grid)         # (n_folds, 5)
+        rec_arr = np.array(recall_grid)
+        pre_arr = np.array(precision_grid)
+
+        col_w = 18
+        header = f"\n  {'Grade':<14}" + "".join(f"{'F1':>{col_w}}{'Recall':>{col_w}}{'Precision':>{col_w}}" for _ in [""]).replace("  ", " ")
+        # Simpler table:
+        print(f"\n  {'Per-class metrics (mean +/- std across {len(f1_grid)} folds)':}")
+        print(f"  {'-'*74}")
+        print(f"  {'Grade':<14} {'F1':>12}  {'Recall':>12}  {'Precision':>12}")
+        print(f"  {'-'*74}")
+        for c in range(N_CLASSES):
+            f1_m, f1_s   = np.mean(f1_arr[:, c]),  np.std(f1_arr[:, c])
+            rec_m, rec_s = np.mean(rec_arr[:, c]), np.std(rec_arr[:, c])
+            pre_m, pre_s = np.mean(pre_arr[:, c]), np.std(pre_arr[:, c])
+            print(
+                f"  {GRADE_NAMES[c]:<14} "
+                f"{f1_m:.4f}+/-{f1_s:.4f}  "
+                f"{rec_m:.4f}+/-{rec_s:.4f}  "
+                f"{pre_m:.4f}+/-{pre_s:.4f}"
+            )
+        print(f"  {'-'*74}")
 
     if total_runtime > 0:
         import time
@@ -194,7 +244,9 @@ def main():
 
     print(f"{'-' * 60}\n")
 
+    # ----------------------------------------------------------------
     # Save to JSON
+    # ----------------------------------------------------------------
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     from datetime import datetime
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -214,13 +266,25 @@ def main():
         }
     }
 
-    # Add sens/spec if available
     if sens_list:
         output["summary"]["val_sens_mean"] = float(np.mean(sens_list))
         output["summary"]["val_sens_std"] = float(np.std(sens_list))
     if spec_list:
         output["summary"]["val_spec_mean"] = float(np.mean(spec_list))
         output["summary"]["val_spec_std"] = float(np.std(spec_list))
+    if f1_macro_list:
+        output["summary"]["val_f1_macro_mean"] = float(np.mean(f1_macro_list))
+        output["summary"]["val_f1_macro_std"] = float(np.std(f1_macro_list))
+
+    # Per-class summary
+    if f1_grid:
+        output["summary"]["val_f1_per_class_mean"]        = f1_arr.mean(axis=0).tolist()
+        output["summary"]["val_f1_per_class_std"]         = f1_arr.std(axis=0).tolist()
+        output["summary"]["val_recall_per_class_mean"]    = rec_arr.mean(axis=0).tolist()
+        output["summary"]["val_recall_per_class_std"]     = rec_arr.std(axis=0).tolist()
+        output["summary"]["val_precision_per_class_mean"] = pre_arr.mean(axis=0).tolist()
+        output["summary"]["val_precision_per_class_std"]  = pre_arr.std(axis=0).tolist()
+        output["summary"]["grade_names"] = GRADE_NAMES
 
     if total_runtime > 0:
         output["total_runtime_seconds"] = total_runtime

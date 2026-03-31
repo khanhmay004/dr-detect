@@ -1,7 +1,7 @@
 # Research Project: Uncertainty-Aware Attention CNN for Diabetic Retinopathy Grading
 
 > **Document Role**: Single source-of-truth for the `dr-detect` project.
-> **Last Updated**: 2026-03-31
+> **Last Updated**: 2026-03-31 (Phase 2 in progress)
 > **Project Type**: Bachelor's Thesis — Data Science (Deep Learning in Healthcare)
 > **Timeline**: 1 month (01/03/2026 – 31/03/2026)
 
@@ -489,19 +489,20 @@ Each row adds exactly one component. Delta between adjacent rows isolates that c
 
 ```
 src/
-├── config.py           # Centralized hyperparameters, paths, constants
-├── preprocessing.py    # Ben Graham's pipeline (crop + color norm)
-├── dataset.py          # DRDataset, MessidorDataset, augmentations, dataloaders
-├── model.py            # CBAM, MCDropout, CBAMResNet50, BaselineResNet50
-├── loss.py             # FocalLoss, compute_class_weights
-├── train.py            # Trainer class (AMP, early stopping, checkpointing)
-├── evaluate.py         # MC Dropout inference, metrics, visualization
-├── configs/            # YAML experiment configs (CPU smoke test, GPU baseline, GPU CBAM)
+├── config.py                   # Centralized hyperparameters, paths, constants
+├── preprocessing.py            # Ben Graham's pipeline (crop + color norm)
+├── dataset.py                  # DRDataset, MessidorDataset, augmentations, dataloaders
+├── model.py                    # CBAM, MCDropout, CBAMResNet50, BaselineResNet50
+├── loss.py                     # FocalLoss, compute_class_weights
+├── train.py                    # Trainer class (AMP, early stopping, checkpointing)
+├── evaluate.py                 # MC Dropout inference, metrics, visualization (with wildcard checkpoint support)
+├── compute_cross_fold_stats.py # Cross-validation statistics aggregation
+├── configs/                    # YAML experiment configs (CPU smoke test, GPU baseline, GPU CBAM)
 │   ├── experiment_config.py
 │   ├── cpu_smoke_test.yaml
 │   ├── gpu_baseline.yaml
 │   └── gpu_cbam.yaml
-└── tests/              # Unit tests for model and determinism
+└── tests/                      # Unit tests for model and determinism
 ```
 
 ### 11.2. Completed Work (Phase 0 + Phase 1)
@@ -537,15 +538,27 @@ src/
 - **Training set**: 2,929 images | **Validation set**: 733 images
 - **Artifacts location**: `dr-results/outputs/` (separate from CPU runs in `outputs/`)
 - **Key observation**: Baseline ResNet-50 achieves strong performance, setting a high bar for CBAM ablation study
+- **Messidor-2 smoke tests**: Multiple smoke tests (10 images, T=3) run successfully, validating evaluation pipeline
 
-### 11.3. Pending Work
+### 11.3. Phase 2 Progress (In Progress — 2026-03-31)
+
+| Task                                           | Status             | Notes                                   |
+| ---------------------------------------------- | ------------------ | --------------------------------------- |
+| Messidor-2 evaluation smoke tests              | ✅ Complete        | Multiple runs validated (10 img, T=3)  |
+| Checkpoint wildcard path resolution            | ✅ Complete        | Added to evaluate.py                    |
+| Cross-fold stats script bug identification     | ✅ Complete        | Documented baseline fold 0 limitation   |
+| Messidor-2 full evaluation (baseline)          | 🔄 In progress     | Ready to run on GPU                     |
+| GPU CBAM-ResNet50 training (fold 0)            | ⬜ Not started     | Waiting for GPU allocation              |
+| GPU CBAM-ResNet50 training (folds 1-4)         | ⬜ Not started     | —                                       |
+
+### 11.4. Pending Work
 
 | Task                                           | Status             | Priority     | Dependencies                |
 | ---------------------------------------------- | ------------------ | ------------ | --------------------------- |
-| Messidor-2 evaluation (baseline checkpoint)    | ⬜ Not started     | **Blocking** | Phase 1 complete ✅          |
+| Messidor-2 full evaluation (baseline)          | 🔄 Ready to run    | **Blocking** | Phase 1 complete ✅          |
 | GPU CBAM-ResNet50 training (fold 0)            | ⬜ Not started     | **Blocking** | Phase 1 complete ✅          |
 | GPU CBAM-ResNet50 training (folds 1-4)         | ⬜ Not started     | **Blocking** | Fold 0 CBAM complete        |
-| Cross-fold statistics (mean ± std)             | ⬜ Not started     | **Blocking** | All 5 folds complete        |
+| Cross-fold statistics (mean ± std)             | ⚠️ Baseline N/A   | **Blocking** | CBAM folds 0-4 complete     |
 | ECE / calibration metrics in evaluate.py       | ⬜ Not implemented | High         | —                           |
 | Referral threshold analysis                    | ⬜ Not implemented | High         | Messidor-2 evaluation       |
 | Ablation study (4 model variants)              | ⬜ Not started     | High         | Baseline + CBAM fold 0      |
@@ -555,9 +568,10 @@ src/
 | Thesis document writing                        | ⬜ Not started     | High         | Core experiments complete   |
 
 **Next Immediate Steps** (Phase 2):
-1. Run Messidor-2 external validation on baseline checkpoint (`dr-results/outputs/checkpoints/baseline_resnet50_fold0_best.pth`)
+1. Run full Messidor-2 external validation on baseline checkpoint (T=20 passes)
 2. Train CBAM-ResNet50 on fold 0 with identical hyperparameters
 3. Compare baseline vs. CBAM performance on both APTOS validation and Messidor-2
+4. **Note**: Baseline cross-fold stats cannot be computed (only trained on fold 0 for time constraints)
 
 ---
 
@@ -626,6 +640,48 @@ src/
 **Problem**: The official Messidor-2 dataset was released without DR severity grades. Third-party labels are required for evaluation. The project originally contained `trainLabels.csv` from the Kaggle EyePACS competition (35,127 entries) — an entirely different dataset — misidentified as Messidor-2 labels.
 
 **Fix**: Replaced with adjudicated labels from Krause et al. (2018), sourced from [Kaggle google-brain/messidor2-dr-grades](https://www.kaggle.com/datasets/google-brain/messidor2-dr-grades). Dataset code updated to read `image_id` / `adjudicated_dr_grade` columns and filter ungradable images. The "ground truth" for external validation is derived from expert consensus rather than definitive clinical diagnosis — this is a common limitation across all Messidor-2 evaluation studies.
+
+### Issue 9 — Baseline Cross-Fold Stats Structurally Impossible
+
+**Severity**: MEDIUM | **Status**: ✅ DOCUMENTED
+
+**Problem**: The `compute_cross_fold_stats.py` script supports `--model baseline_resnet50`, but baseline was only trained on fold 0 (for time/cost constraints). The script allows running with `< 2` folds (line 168: `if len(fold_metrics) < 1`), but computing mean ± std from a single fold is meaningless. Cross-validation statistics require multiple folds.
+
+**Impact**: Cannot report baseline cross-validation statistics (only single-fold performance). CBAM will have proper 5-fold CV stats for comparison.
+
+**Resolution**:
+- **Option 1** (chosen): Document limitation in thesis — baseline trained only on fold 0 for computational efficiency, direct ablation comparison uses fold 0 for both models
+- **Option 2** (time-intensive): Train baseline on all 5 folds (~12.5 hours GPU time)
+
+**Mitigation**: The ablation comparison (baseline vs. CBAM on fold 0) remains valid. CBAM's cross-validation statistics provide robustness evidence. This is an acceptable limitation for a thesis with time constraints.
+
+### Issue 10 — Checkpoint Path Inconsistencies (Timestamped vs. Non-Timestamped)
+
+**Severity**: HIGH (usability) | **Status**: ✅ FIXED (2026-03-31)
+
+**Problem**: The `train.py` script generates timestamped checkpoint names (`model_YYYYMMDD_HHMMSS_foldN_best.pth`), but documentation and commands used hardcoded non-timestamped paths. Shell glob patterns like `cbam_resnet50_*_fold0_best.pth` work in `ls` but fail when passed directly to Python's `argparse` (Python doesn't expand wildcards like the shell does). This caused `FileNotFoundError` when users copy-pasted commands from documentation.
+
+**Example failure**:
+```bash
+python src/evaluate.py --checkpoint outputs/checkpoints/cbam_resnet50_fold0_best.pth  # ❌ File doesn't exist
+# Actual file: cbam_resnet50_20260331_143052_fold0_best.pth
+```
+
+**Fix**:
+1. Added wildcard expansion logic to `evaluate.py` (imports `glob`, `os`)
+2. Added checkpoint resolution after argument parsing:
+   ```python
+   if '*' in checkpoint_path or '?' in checkpoint_path:
+       matches = sorted(glob.glob(checkpoint_path), key=os.path.getmtime, reverse=True)
+       if not matches:
+           raise FileNotFoundError(f"No checkpoint files found matching pattern: {checkpoint_path}")
+       checkpoint_path = matches[0]  # Most recent
+       print(f"Resolved checkpoint pattern to: {checkpoint_path}")
+   ```
+3. Updated all documentation to use wildcard patterns: `"outputs/checkpoints/baseline_resnet50*fold0_best.pth"`
+4. Pattern works with both old (no timestamp) and new (timestamped) checkpoint formats
+
+**Benefit**: Users can now copy-paste commands directly from documentation. The script auto-selects the most recent checkpoint when multiple matches exist.
 
 ---
 
@@ -706,13 +762,25 @@ Fixed MCDropout deterministic validation, gradient clipping, progress bar, basel
 - ✅ Results location: `dr-results/outputs/` (separate from CPU runs)
 
 **Pending**:
-- ⬜ Evaluate baseline on Messidor-2 (MC Dropout T=20) — next priority
+- 🔄 Evaluate baseline on Messidor-2 (MC Dropout T=20) — smoke tests complete, ready for full run
 - ⬜ Record external validation metrics: QWK, AUC, accuracy, entropy statistics
 
-### Phase 2: CBAM-ResNet50 Training (Days 3–5)
+### Phase 2: CBAM-ResNet50 Training — 🔄 IN PROGRESS (2026-03-31)
 
-- Train CBAM-ResNet50 fold 0, compare with baseline
-- Train folds 1–4, compute cross-fold statistics (mean ± std)
+**Completed**:
+- ✅ Messidor-2 evaluation smoke tests (baseline, 10 images, T=3) — pipeline validated
+- ✅ Fixed checkpoint path wildcards in evaluate.py — improved usability
+- ✅ Identified baseline cross-fold limitation — documented for thesis
+
+**In Progress**:
+- 🔄 Full Messidor-2 baseline evaluation (1,744 images, T=20 passes) — ready to run on GPU
+- ⬜ Train CBAM-ResNet50 fold 0 — awaiting GPU allocation
+- ⬜ Compare baseline vs. CBAM on fold 0
+
+**Remaining**:
+- ⬜ Train CBAM-ResNet50 folds 1–4
+- ⬜ Compute CBAM cross-fold statistics (mean ± std)
+- ⚠️ Note: Baseline cross-fold stats not possible (only trained on fold 0)
 
 ### Phase 3: Evaluation & Uncertainty Analysis (Days 6–8)
 
@@ -750,12 +818,14 @@ Fixed MCDropout deterministic validation, gradient clipping, progress bar, basel
 
 ### 16.1. APTOS Validation
 
-| Metric       | Baseline ResNet-50 | CBAM-ResNet50 (Expected) |
-| ------------ | ------------------ | ------------------------ |
-| Val Accuracy | 72–78%             | 78–85%                   |
-| Val QWK      | 0.75–0.82          | 0.75–0.85                |
-| Macro F1     | 0.55–0.65          | 0.60–0.72                |
-| Val AUC      | 0.85–0.92          | 0.88–0.94                |
+| Metric       | Baseline ResNet-50 (Expected) | Baseline ResNet-50 (Actual) | CBAM-ResNet50 (Expected) |
+| ------------ | ----------------------------- | --------------------------- | ------------------------ |
+| Val Accuracy | 72–78%                        | **84.45%** ✅                | 78–85%                   |
+| Val QWK      | 0.75–0.82                     | **0.9088** ✅                | 0.75–0.85                |
+| Macro F1     | 0.55–0.65                     | TBD                         | 0.60–0.72                |
+| Val AUC      | 0.85–0.92                     | **0.9846** ✅                | 0.88–0.94                |
+
+**Note**: Baseline significantly exceeded expectations, setting a high bar for CBAM ablation.
 
 ### 16.2. Messidor-2 External
 

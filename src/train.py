@@ -31,6 +31,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from sklearn.metrics import (
     cohen_kappa_score, accuracy_score, roc_auc_score, confusion_matrix,
+    classification_report, f1_score,
 )
 
 from config import (
@@ -109,6 +110,10 @@ class Trainer:
             "train_acc": [],  "val_acc": [],
             "val_kappa": [],  "val_auc": [],
             "val_sens": [],   "val_spec": [],  # Binary referable DR metrics
+            "val_f1_macro": [],  # Macro F1 across all 5 classes
+            "val_recall_per_class": [],  # Per-class recall [grade0, grade1, ..., grade4]
+            "val_precision_per_class": [],  # Per-class precision
+            "val_f1_per_class": [],  # Per-class F1-score
         }
 
     # -----------------------------------------------------------------
@@ -165,7 +170,15 @@ class Trainer:
 
     @torch.no_grad()
     def validate(self, val_loader, criterion):
-        """Validate with deterministic (non-MC) inference."""
+        """Validate with deterministic (non-MC) inference.
+
+        Returns
+        -------
+        epoch_loss, epoch_acc, epoch_kappa, epoch_auc,
+        epoch_sens, epoch_spec,
+        per_class  : dict with keys recall, precision, f1, macro_f1
+                     each a list of 5 floats (one per DR grade).
+        """
         self.model.eval()
         running_loss = 0.0
         all_preds, all_labels, all_probs = [], [], []
@@ -212,14 +225,29 @@ class Trainer:
             epoch_auc = 0.0
 
         # Sensitivity & Specificity from confusion matrix
-        # [[TN, FP], [FN, TP]] for binary_labels with pos_label=1 (referable)
         tn, fp, fn, tp = confusion_matrix(
             binary_labels, binary_preds, labels=[0, 1]
         ).ravel()
         epoch_sens = tp / (tp + fn) if (tp + fn) > 0 else 0.0
         epoch_spec = tn / (tn + fp) if (tn + fp) > 0 else 0.0
 
-        return epoch_loss, epoch_acc, epoch_kappa, epoch_auc, epoch_sens, epoch_spec
+        # ---- Per-class metrics (5 DR grades) ----
+        # zero_division=0 prevents warnings when a class has 0 predictions
+        report = classification_report(
+            all_labels, all_preds,
+            labels=[0, 1, 2, 3, 4],
+            output_dict=True,
+            zero_division=0,
+        )
+        per_class = {
+            "recall":    [report[str(c)]["recall"]    for c in range(5)],
+            "precision": [report[str(c)]["precision"] for c in range(5)],
+            "f1":        [report[str(c)]["f1-score"]  for c in range(5)],
+            "macro_f1":  report["macro avg"]["f1-score"],
+        }
+
+        return (epoch_loss, epoch_acc, epoch_kappa, epoch_auc,
+                epoch_sens, epoch_spec, per_class)
 
     # -----------------------------------------------------------------
     #  Checkpointing
@@ -298,15 +326,15 @@ class Trainer:
             # Train
             t_loss, t_acc = self.train_epoch(train_loader, criterion, optimizer)
 
-            # Validate — returns (loss, acc, kappa, auc, sens, spec)
-            v_loss, v_acc, v_kappa, v_auc, v_sens, v_spec = self.validate(
+            # Validate — returns (loss, acc, kappa, auc, sens, spec, per_class)
+            v_loss, v_acc, v_kappa, v_auc, v_sens, v_spec, per_class = self.validate(
                 val_loader, criterion
             )
 
             # LR step
             scheduler.step()
 
-            # Log
+            # Log scalars
             self.history["train_loss"].append(t_loss)
             self.history["train_acc"].append(t_acc)
             self.history["val_loss"].append(v_loss)
@@ -315,14 +343,26 @@ class Trainer:
             self.history["val_auc"].append(v_auc)
             self.history["val_sens"].append(v_sens)
             self.history["val_spec"].append(v_spec)
+            self.history["val_f1_macro"].append(per_class["macro_f1"])
+            # Per-class lists stored as list-of-lists (epoch × class)
+            self.history["val_recall_per_class"].append(per_class["recall"])
+            self.history["val_precision_per_class"].append(per_class["precision"])
+            self.history["val_f1_per_class"].append(per_class["f1"])
 
             lr = optimizer.param_groups[0]["lr"]
+            grade_names = ["No DR", "Mild", "Moderate", "Severe", "PDR"]
             print(
                 f"\n  Epoch {epoch + 1}/{num_epochs}\n"
                 f"    Train  — loss: {t_loss:.4f}  acc: {t_acc:.4f}\n"
                 f"    Val    — loss: {v_loss:.4f}  acc: {v_acc:.4f}\n"
                 f"    Val κ: {v_kappa:.4f}  AUC: {v_auc:.4f}  "
-                f"Sens: {v_sens:.4f}  Spec: {v_spec:.4f}  LR: {lr:.2e}"
+                f"Sens: {v_sens:.4f}  Spec: {v_spec:.4f}  "
+                f"F1-macro: {per_class['macro_f1']:.4f}  LR: {lr:.2e}\n"
+                f"    Per-class F1:  "
+                + "  ".join(
+                    f"{name[:4]}={f1:.3f}"
+                    for name, f1 in zip(grade_names, per_class["f1"])
+                )
             )
 
             # Best-model tracking
@@ -387,6 +427,11 @@ class Trainer:
                 "val_loss": self.history["val_loss"][best_idx] if best_idx < len(self.history["val_loss"]) else None,
                 "train_acc": self.history["train_acc"][best_idx] if best_idx < len(self.history["train_acc"]) else None,
                 "train_loss": self.history["train_loss"][best_idx] if best_idx < len(self.history["train_loss"]) else None,
+                # Per-class metrics at best epoch
+                "val_f1_macro": self.history["val_f1_macro"][best_idx] if best_idx < len(self.history["val_f1_macro"]) else None,
+                "val_f1_per_class": self.history["val_f1_per_class"][best_idx] if best_idx < len(self.history["val_f1_per_class"]) else None,
+                "val_recall_per_class": self.history["val_recall_per_class"][best_idx] if best_idx < len(self.history["val_recall_per_class"]) else None,
+                "val_precision_per_class": self.history["val_precision_per_class"][best_idx] if best_idx < len(self.history["val_precision_per_class"]) else None,
             },
             "final_metrics": {
                 "epoch": len(self.history["val_kappa"]),

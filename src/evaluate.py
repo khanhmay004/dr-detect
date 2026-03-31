@@ -20,6 +20,10 @@ Usage::
     python evaluate.py --checkpoint best.pth --mc_passes 50
     python evaluate.py --checkpoint best.pth --model baseline --max_images 10 --mc_passes 3
 
+    # Wildcard support (auto-selects most recent, works with/without timestamps):
+    python evaluate.py --checkpoint "outputs/checkpoints/cbam_resnet50*fold0_best.pth"
+    python evaluate.py --checkpoint "outputs/checkpoints/baseline*fold0_best.pth" --model baseline
+
 MLOps notes
 -----------
 - ``model.eval()`` is called so BatchNorm uses its running statistics
@@ -32,7 +36,9 @@ MLOps notes
 """
 
 import argparse
+import glob
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -307,6 +313,20 @@ def main():
     parser.add_argument("--max_images", type=int, default=None,
                         help="Limit dataset to N images (for smoke testing)")
     args = parser.parse_args()
+
+    # ---- Resolve checkpoint path (support wildcards) ----
+    checkpoint_path = args.checkpoint
+    if '*' in checkpoint_path or '?' in checkpoint_path:
+        matches = sorted(glob.glob(checkpoint_path), key=os.path.getmtime, reverse=True)
+        if not matches:
+            raise FileNotFoundError(
+                f"No checkpoint files found matching pattern: {checkpoint_path}"
+            )
+        checkpoint_path = matches[0]
+        print(f"Resolved checkpoint pattern to: {checkpoint_path}")
+
+    # Update args with resolved path
+    args.checkpoint = checkpoint_path
 
     # ---- Setup ----
     seed_everything(RANDOM_SEED)

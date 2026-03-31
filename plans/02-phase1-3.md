@@ -869,11 +869,11 @@ python src/evaluate.py \
 **Expected Output**:
 ```
 Loading Messidor-2 dataset ...
-  Images: 690
+  Images: 1744
 Loading checkpoint ...
   Checkpoint epoch: X  |  best kappa: 0.XXXX
 Running MC Dropout inference (T = 20) ...
-  Results CSV: outputs/results/messidor2_uncertainty.csv  (690 images)
+  Results CSV: outputs/results/messidor2_uncertainty.csv  (1744 images)
 
 ==================================================
   MESSIDOR-2 EVALUATION
@@ -1022,7 +1022,7 @@ src/
    - Checkpoint file size ~100MB
 
 3. **Messidor-2 Evaluation**
-   - All 690 images processed
+   - All 1744 gradable images processed
    - QWK computed (expect 0.55-0.75 due to domain shift)
    - Uncertainty figures generated
    - No file loading errors

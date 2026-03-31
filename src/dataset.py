@@ -9,7 +9,7 @@ Provides two dataset classes:
 
 2. ``MessidorDataset`` — Messidor-2 (external-set inference).
    Images live in ``messidor-2/IMAGES/``.
-   Labels from ``messidor-2/messidor-2.csv`` (column ``adjudicated_dr_grade``).
+   Labels from ``messidor_data.csv`` (column ``adjudicated_dr_grade``).
 
 Both datasets apply Ben Graham preprocessing (circular crop + Gaussian-blur
 color normalization) before any augmentation/normalization.

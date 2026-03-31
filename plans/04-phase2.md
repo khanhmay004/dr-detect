@@ -1,9 +1,17 @@
 # Implementation Plan: Phase 2 — CBAM Training + External Validation
 
-> **Document Version**: 1.0
+> **Document Version**: 1.1
 > **Created**: 2026-03-31
+> **Updated**: 2026-03-31 — Added per-class metrics (F1/Recall/Precision per DR grade)
 > **Scope**: Messidor-2 Baseline Evaluation + CBAM-ResNet50 Training (All 5 Folds)
 > **Prerequisites**: Phase 1 baseline training complete (checkpoint: `dr-results/outputs/checkpoints/baseline_resnet50_fold0_best.pth`)
+
+### Changelog
+
+| Version | Date | Change |
+|---------|------|--------|
+| 1.0 | 2026-03-31 | Initial plan |
+| 1.1 | 2026-03-31 | `train.py` `validate()` now returns per-class F1/recall/precision + macro F1; `fit()` prints per-class F1 table each epoch and logs to history; `_save_run_metrics()` persists per-class values in `*_metrics.json`; `compute_cross_fold_stats.py` computes and prints mean±std per-class table and saves to JSON |
 
 ---
 
@@ -14,9 +22,9 @@ Phase 2 completes the experimental pipeline by:
 1. **Evaluating baseline ResNet-50 on Messidor-2** — External validation with MC Dropout uncertainty quantification
 2. **Training CBAM-ResNet50 on fold 0** — Direct ablation comparison with baseline
 3. **Training CBAM-ResNet50 on folds 1-4** — Cross-validation for robust statistics
-4. **Computing cross-fold statistics** — Mean ± std for QWK, AUC, accuracy
+4. **Computing cross-fold statistics** — Mean ± std for QWK, AUC, Accuracy, Sensitivity, Specificity, F1-macro, and **per-class F1/Recall/Precision** (5 DR grades)
 
-**Expected Duration**: ~6-8 hours GPU time total (RTX 3090)
+**Expected Duration**: ~13 hours GPU time total on RTX 3090 (5 folds × 2.5 hrs training + ~20 min evaluations). Minimum useful run (fold 0 + both Messidor-2 evals): **~3 hours**.
 
 ---
 
@@ -76,16 +84,16 @@ python src/evaluate.py \
 ```
 Device: cuda
 Loading Messidor-2 dataset ...
-  Images: 874
+  Images: 1744
   (filtered to gradable images only)
 
 Loading BASELINE model from checkpoint ...
   Checkpoint epoch: 14  |  best kappa: 0.9088
 
 Running MC Dropout inference (T = 20) ...
-MC Inference (T=20): 100%|██████████| 55/55 [00:45<00:00]
+MC Inference (T=20): 100%|██████████| 109/109 [01:30<00:00]
 
-  Results CSV: outputs/results/baseline_messidor2_YYYYMMDD_HHMMSS_20T_874img_uncertainty.csv  (874 images)
+  Results CSV: outputs/results/baseline_messidor2_YYYYMMDD_HHMMSS_20T_1744img_uncertainty.csv  (1744 images)
 
 ==================================================
   MESSIDOR-2 EVALUATION
@@ -108,11 +116,11 @@ MC Inference (T=20): 100%|██████████| 55/55 [00:45<00:00]
 ```
 outputs/
 ├── results/
-│   ├── baseline_messidor2_YYYYMMDD_HHMMSS_20T_874img_uncertainty.csv
-│   └── baseline_messidor2_YYYYMMDD_HHMMSS_20T_874img_metrics.json
+│   ├── baseline_messidor2_YYYYMMDD_HHMMSS_20T_1744img_uncertainty.csv
+│   └── baseline_messidor2_YYYYMMDD_HHMMSS_20T_1744img_metrics.json
 └── figures/
-    ├── baseline_messidor2_YYYYMMDD_HHMMSS_20T_874img_entropy_hist.png
-    └── baseline_messidor2_YYYYMMDD_HHMMSS_20T_874img_conf_vs_ent.png
+    ├── baseline_messidor2_YYYYMMDD_HHMMSS_20T_1744img_entropy_hist.png
+    └── baseline_messidor2_YYYYMMDD_HHMMSS_20T_1744img_conf_vs_ent.png
 ```
 
 ### Expected Metrics (Domain Shift)
@@ -181,6 +189,12 @@ Building CBAM model ...
 
 Epoch 1/20 [Train]: 100%|██████████| 183/183 [02:30<00:00]
 Epoch 1/20 [Val]: 100%|██████████| 46/46 [00:15<00:00]
+
+  Epoch 1/20
+    Train  — loss: 0.XXXX  acc: 0.XXXX
+    Val    — loss: 0.XXXX  acc: 0.XXXX
+    Val κ: 0.XXXX  AUC: 0.XXXX  Sens: 0.XXXX  Spec: 0.XXXX  F1-macro: 0.XXXX  LR: 1.00e-04
+    Per-class F1:  No D=0.XXX  Mild=0.XXX  Mode=0.XXX  Seve=0.XXX  PDR =0.XXX
   ...
 ```
 
@@ -439,11 +453,11 @@ python src/compute_cross_fold_stats.py --model baseline_resnet50
   Cross-Fold Statistics: CBAM_RESNET50
 ============================================================
 
-  Fold 0: QWK=0.9120, Acc=0.8512, AUC=0.9867
-  Fold 1: QWK=0.9045, Acc=0.8423, AUC=0.9845
-  Fold 2: QWK=0.9089, Acc=0.8467, AUC=0.9856
-  Fold 3: QWK=0.9012, Acc=0.8389, AUC=0.9834
-  Fold 4: QWK=0.9078, Acc=0.8456, AUC=0.9851
+  Fold 0: QWK=0.9120, Acc=0.8512, AUC=0.9867, Sens=0.XXXX, Spec=0.XXXX
+  Fold 1: QWK=0.9045, Acc=0.8423, AUC=0.9845, Sens=0.XXXX, Spec=0.XXXX
+  Fold 2: QWK=0.9089, Acc=0.8467, AUC=0.9856, Sens=0.XXXX, Spec=0.XXXX
+  Fold 3: QWK=0.9012, Acc=0.8389, AUC=0.9834, Sens=0.XXXX, Spec=0.XXXX
+  Fold 4: QWK=0.9078, Acc=0.8456, AUC=0.9851, Sens=0.XXXX, Spec=0.XXXX
 
 ------------------------------------------------------------
   SUMMARY (5 folds)
@@ -451,9 +465,23 @@ python src/compute_cross_fold_stats.py --model baseline_resnet50
   Val QWK:      0.9069 +/- 0.0039
   Val Accuracy: 0.8449 +/- 0.0044
   Val AUC:      0.9851 +/- 0.0012
+  Val Sens:     0.XXXX +/- 0.XXXX
+  Val Spec:     0.XXXX +/- 0.XXXX
+  Val F1-macro: 0.XXXX +/- 0.XXXX
+
+  Per-class metrics (mean +/- std across 5 folds)
+  --------------------------------------------------------------------------
+  Grade               F1              Recall          Precision
+  --------------------------------------------------------------------------
+  No DR (0)    0.9XXX+/-0.00XX  0.9XXX+/-0.00XX  0.9XXX+/-0.00XX
+  Mild (1)     0.5XXX+/-0.0XXX  0.5XXX+/-0.0XXX  0.5XXX+/-0.0XXX
+  Moderate (2) 0.8XXX+/-0.00XX  0.8XXX+/-0.00XX  0.8XXX+/-0.00XX
+  Severe (3)   0.4XXX+/-0.0XXX  0.4XXX+/-0.0XXX  0.4XXX+/-0.0XXX
+  PDR (4)      0.7XXX+/-0.0XXX  0.7XXX+/-0.0XXX  0.7XXX+/-0.0XXX
+  --------------------------------------------------------------------------
 ------------------------------------------------------------
 
-  Saved: outputs/results/cbam_resnet50_crossfold_stats.json
+  Saved: outputs/results/cbam_resnet50_crossfold_stats_YYYYMMDD_HHMMSS.json
 ```
 
 ---
@@ -519,7 +547,7 @@ wc -l messidor-2/messidor_data.csv
 
 # Expected:
 # - IMAGES/ directory with .tif files
-# - messidor_data.csv with 1748 rows (header + 1747 images, ~874 gradable)
+# - messidor_data.csv with 1748 rows (header + 1747 images, 1744 gradable)
 ```
 
 ### Step 6: Run Experiments
@@ -537,7 +565,7 @@ python src/train.py --model cbam --epochs 20 --batch_size 16 --fold 0
 
 # 3. CBAM Messidor-2 Evaluation
 python src/evaluate.py \
-    --checkpoint outputs/checkpoints/cbam_resnet50_fold0_best.pth \
+    --checkpoint "outputs/checkpoints/cbam_resnet50*fold0_best.pth" \
     --model cbam \
     --batch_size 16 \
     --mc_passes 20
@@ -750,7 +778,7 @@ Each training run produces a detailed `{run_tag}_metrics.json`:
 ### Phase 2.1 Success Criteria
 
 - [ ] Messidor-2 evaluation completes without errors
-- [ ] All 874 gradable images processed (or appropriate subset)
+- [ ] All 1744 gradable images processed (or appropriate subset)
 - [ ] QWK computed (expect 0.55-0.75 for domain shift)
 - [ ] Uncertainty CSV contains per-image entropy values
 - [ ] Figures saved (entropy histogram, confidence vs entropy)
@@ -797,17 +825,14 @@ Each training run produces a detailed `{run_tag}_metrics.json`:
 # Phase 2.1: Messidor-2 Baseline Evaluation
 # ========================================
 
-# Find latest baseline checkpoint (timestamped)
-ls -lt outputs/checkpoints/baseline_resnet50_*_fold0_best.pth | head -1
-
 # Smoke test (quick)
 python src/evaluate.py \
-    --checkpoint outputs/checkpoints/baseline_resnet50_*_fold0_best.pth \
+    --checkpoint "outputs/checkpoints/baseline_resnet50*fold0_best.pth" \
     --model baseline --batch_size 4 --mc_passes 3 --max_images 10
 
-# Full evaluation (use the actual checkpoint path)
+# Full evaluation (wildcard auto-selects most recent)
 python src/evaluate.py \
-    --checkpoint outputs/checkpoints/baseline_resnet50_YYYYMMDD_HHMMSS_fold0_best.pth \
+    --checkpoint "outputs/checkpoints/baseline_resnet50*fold0_best.pth" \
     --model baseline --batch_size 16 --mc_passes 20
 
 
@@ -817,12 +842,9 @@ python src/evaluate.py \
 
 python src/train.py --model cbam --epochs 20 --batch_size 16 --fold 0
 
-# Find latest CBAM checkpoint
-ls -lt outputs/checkpoints/cbam_resnet50_*_fold0_best.pth | head -1
-
-# CBAM Messidor-2 evaluation
+# CBAM Messidor-2 evaluation (wildcard auto-selects most recent)
 python src/evaluate.py \
-    --checkpoint outputs/checkpoints/cbam_resnet50_YYYYMMDD_HHMMSS_fold0_best.pth \
+    --checkpoint "outputs/checkpoints/cbam_resnet50*fold0_best.pth" \
     --model cbam --batch_size 16 --mc_passes 20
 
 
