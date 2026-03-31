@@ -10,6 +10,7 @@ messidor-2/
 data/
 *.csv
 *.zip
+*.tar.gz
 
 # PyTorch/Model weights
 outputs/checkpoints/
