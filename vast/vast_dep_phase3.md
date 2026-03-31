@@ -138,6 +138,47 @@ If missing, upload from local or Drive.
 
 ---
 
+## STEP 6.5: Restore outputs + normalize Messidor image extensions (if needed)
+
+Use this only if:
+
+- your `outputs/` folder is missing or stale, or
+- extracted Messidor files use `.JPG` while pipeline expects lowercase `.jpg`.
+
+```bash
+cd /workspace/dr-detect
+
+# Delete current outputs directory
+rm -rf outputs/
+
+# Re-extract previous results archive (adjust path if different)
+tar -xzf DR-Detect-Results/dr-results.tar.gz
+
+# Check extraction
+ls -la
+ls -la outputs/
+```
+
+Normalize uppercase `.JPG` files to lowercase `.jpg`:
+
+```bash
+cd /workspace/dr-detect/messidor-2/IMAGES/
+for file in *.JPG; do
+  if [ -f "$file" ]; then
+    mv "$file" "${file%.JPG}.jpg"
+  fi
+done
+cd /workspace/dr-detect
+```
+
+Verify extension distribution:
+
+```bash
+ls messidor-2/IMAGES/ | sed 's/.*\.//' | sort | uniq -c
+```
+
+---
+
 ## STEP 7: Smoke Test (Phase 3 Rerun)
 
 ### 7.1 Baseline smoke run
