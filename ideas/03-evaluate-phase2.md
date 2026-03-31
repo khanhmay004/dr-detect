@@ -1,371 +1,313 @@
-# Phase 2 Comprehensive Evaluation Report
+# Comprehensive Evaluation Report (Phase 3 Updated)
 
 ## 1) Executive Summary
 
-Phase 2 demonstrates that the project pipeline is already strong and thesis-viable, but the **current CBAM result (fold 0)** does **not** outperform the baseline on either internal validation or external Messidor-2. The baseline is currently the best-performing model.
+This report is a full Phase 3 refresh of the previous Phase 2 evaluation, with outdated assumptions removed and current evidence integrated from end-to-end artifacts.
 
-Key conclusions:
+Overall conclusion:
 
-- The end-to-end pipeline (preprocessing, training, MC inference, external testing) is functioning correctly and reproducibly.
-- Baseline fold-0 performance is very strong on APTOS validation (**QWK 0.9088**, **Acc 84.45%**, **AUC 0.9846**).
-- CBAM fold-0 underperforms baseline on APTOS validation (**QWK 0.8896**, **Acc 78.99%**, **AUC 0.9831**).
-- On Messidor-2 external test, baseline again outperforms CBAM:
-  - Baseline: **Acc 0.6399, QWK 0.6000, Ref-AUC 0.8911**
-  - CBAM: **Acc 0.6095, QWK 0.5777, Ref-AUC 0.8778**
-- Both models are clinically conservative (very high specificity, low sensitivity): good for avoiding false referrals, weak for catching all referable DR cases.
-- Uncertainty behaves sensibly (incorrect predictions have higher entropy), but calibration quality (ECE/Brier) is still missing, which is a critical thesis gap.
-
-Bottom line: your work from preprocessing to implementation is credible and technically solid; the current evidence supports a **strong baseline narrative** and a **negative/neutral CBAM ablation result** unless future folds or tuning reverse the trend.
+- The project pipeline (preprocessing → training → external evaluation) is technically solid and thesis-viable.
+- Phase 3A–3D completed successfully (calibration metrics + reliability + referral analysis + full reruns).
+- Baseline remains stronger than current CBAM on core performance and referral utility.
+- CBAM shows a small ECE improvement, but not enough to offset lower discrimination and sensitivity.
+- Main unresolved clinical issue remains low referable sensitivity at default operating point.
+- Decision to defer Phase 3E and redesign CBAM is reasonable and evidence-based.
 
 ---
 
-## 2) What Was Evaluated
+## 2) Scope and Evidence Base
 
-This assessment is based on:
+This analysis covers all work from project start through completed Phase 3 (A–D), using:
 
-- Project ground-truth documentation: `docs/research-project.md`
-- Agent/rules context: `.agent/AGENTS.md`, `.agent/rules/*`
-- Phase 2 artifacts under `phase2-results`, including:
-  - Training/eval logs
-  - Fold metrics JSONs
-  - Cross-fold stats JSON
-  - Messidor uncertainty CSVs
-  - Generated figures/checkpoints
-- Core implementation code:
-  - `src/preprocessing.py`, `src/dataset.py`, `src/model.py`, `src/loss.py`, `src/train.py`, `src/evaluate.py`, `src/compute_cross_fold_stats.py`
+- Primary project status doc: `docs/research-project.md` (updated)
+- Phase 3 plan/status: `plans/05-phase3.md` (updated)
+- Phase 3 artifacts: `phase3-results/outputs/results/*` and `phase3-results/outputs/figures/*`
+- Full Messidor-2 reruns (`T=20`, `n=1744`) for baseline and CBAM
+- Referral-curve CSV outputs and calibration metrics (ECE/Brier)
+
+Note: This document keeps the original filename for continuity, but it is now the **Phase 3 consolidated report**.
 
 ---
 
-## 3) Pipeline Quality Assessment (Start-to-End)
+## 3) Progress Snapshot by Phase
 
-## 3.1 Data preprocessing
+## Phase 1 — Baseline foundation (complete)
 
-### What is good
+What was achieved:
 
-- Ben Graham preprocessing is correctly implemented:
-  - Circular crop + mask
-  - Local color normalization (`4*I - 4*Blur + 128`)
-- Implementation handles fallback for failed circle detection.
-- Input is normalized to ImageNet statistics downstream.
-- External dataset loading includes schema normalization and gradable filtering.
+- Stable GPU training workflow established.
+- Baseline fold-0 performance reached strong internal validation levels.
+- Reproducible artifact generation pipeline established.
 
-### Risks/notes
+Why it matters:
 
-- APTOS lacks patient IDs, so per-image split remains a known validity limitation (already acknowledged in docs).
-- Messidor CSV format compatibility is robust, but warnings are printed via `print` in dataset code; technically fine for this project, but less production-grade.
+- Baseline became a credible reference model, not a weak comparator.
+- This raised the bar for CBAM and made neutral/negative ablation outcomes meaningful.
 
-Assessment: **Strong and appropriate for thesis-level pipeline**.
+## Phase 2 — Baseline vs CBAM external comparison (complete)
 
----
+What was achieved:
 
-## 3.2 Data augmentation and input strategy
+- Baseline and CBAM both evaluated on Messidor-2 under consistent protocol.
+- External generalization behavior and class-level weaknesses became clear.
 
-### What is good
+Why it matters:
 
-- Augmentation set is reasonable for fundus variability (flip/rotate/affine/brightness/noise).
-- Train/val augmentation separation is clean.
-- 512x512 preserves lesion-scale details better than low-resolution shortcuts.
+- The project moved beyond in-domain metrics and tested domain shift robustness.
+- This supports thesis rigor even when results are not uniformly positive.
 
-### Risks/notes
+## Phase 3A–3D — Calibration and referral analysis (complete)
 
-- Training log shows warning:
-  - `Argument(s) 'mode' are not valid for transform Affine`
-- This indicates an API mismatch or obsolete argument usage path. It does not invalidate results but introduces avoidable noise and potential transform drift.
+What was achieved:
 
-Assessment: **Good overall; minor technical hygiene issue remains**.
+- Added ECE and Brier score to evaluation outputs.
+- Added reliability diagram generation.
+- Added referral-threshold/coverage analysis outputs.
+- Re-ran full Messidor-2 evaluation for baseline and CBAM with new outputs.
 
----
+Why it matters:
 
-## 3.3 Model formulation and architecture choices
+- Uncertainty claims are now measurable, not only qualitative.
+- The thesis now has calibration evidence and operational referral trade-off data.
 
-### What is good
+## Phase 3E — cross-fold CBAM expansion (deferred)
 
-- Controlled ablation intent is correct:
-  - Same backbone/head/loss for baseline vs CBAM; only attention differs.
-- MC Dropout design with deterministic validation context manager is a good engineering correction.
-- Focal loss + class weights is justified by heavy class imbalance.
+Status:
 
-### Risks/notes
+- Deferred intentionally (redesign-first path selected).
 
-- MC Dropout is only at the classifier head, which may limit epistemic uncertainty richness (documented in your risk section as FM2).
-- CBAM adds complexity but does not yet provide empirical gain in your current fold.
+Reasoning:
 
-Assessment: **Methodologically sound design; CBAM value not empirically validated yet**.
+- Current fold-0 + external evidence shows CBAM underperforming baseline.
+- Running folds 1–4 before redesign is less efficient than first improving the architecture.
 
 ---
 
-## 3.4 Training implementation quality
+## 4) Final Quantitative Results (Locked for Current Cycle)
 
-### What is good
+## 4.1 Messidor-2 full rerun results (Phase 3D)
 
-- AMP, AdamW, cosine schedule, gradient clipping, and early stopping are all aligned with modern best practice.
-- Deterministic validation mode resolves earlier stochastic model-selection bug.
-- Checkpoint naming/wildcard resolution in evaluation is a practical usability improvement.
+Dataset/protocol:
 
-### Important inconsistency found
+- Dataset: Messidor-2 (gradable subset)
+- Images: 1744
+- MC passes: 20
+- Task: 5-class DR grading + binary referable analysis (grade >= 2)
 
-- `baseline_resnet50_fold0_metrics.json` in `phase2-results/outputs/results` appears stale (5-epoch CPU-style metrics), while `baseline_resnet50_fold0_history.json` contains the strong 19-epoch GPU run.
-- Correct baseline best metrics should be taken from the history/log and best checkpoint metadata:
-  - **Epoch 14, QWK 0.908849, Acc 0.844475, AUC 0.984633**
-
-Assessment: **Training implementation is good; artifact consistency needs cleanup for reporting integrity**.
-
----
-
-## 3.5 Evaluation implementation quality
-
-### What is good
-
-- External evaluation runs full MC passes (`T=20`) on 1,744 gradable Messidor images.
-- Outputs include both per-image uncertainty CSV and summary JSON.
-- Binary referable metrics (AUC, sensitivity, specificity) are computed and reported.
-
-### Critical gap
-
-- Calibration metrics are still missing:
-  - No ECE
-  - No Brier score
-  - No reliability diagram
-
-Given the thesis claim around uncertainty/trustworthiness, this is the biggest methodological gap remaining.
-
-Assessment: **Good external evaluation workflow, but incomplete uncertainty calibration story**.
-
----
-
-## 4) Quantitative Results Analysis
-
-## 4.1 Internal APTOS fold-0 (best epoch comparison)
-
-Using the best available fold-0 runs:
-
-- **Baseline (best from history):**
-  - Epoch: 14
-  - Val QWK: **0.9088**
-  - Val Acc: **0.8445**
-  - Val AUC: **0.9846**
-
-- **CBAM (best from metrics):**
-  - Epoch: 17
-  - Val QWK: **0.8896**
-  - Val Acc: **0.7899**
-  - Val AUC: **0.9831**
-  - Val Macro-F1: **0.6282**
-
-### Interpretation
-
-- CBAM is lower than baseline by:
-  - QWK: ~**-0.0193**
-  - Accuracy: ~**-0.0546**
-  - AUC: ~**-0.0016**
-- This is not a small random wiggle on accuracy; it is a material drop for fold-0.
-- Baseline is already very strong, which makes incremental improvement harder.
-
----
-
-## 4.2 External Messidor-2 comparison
-
-### Baseline (20T, 1744 images)
-
-- Accuracy: **0.6399**
-- Quadratic Kappa: **0.6000**
-- Referable AUC: **0.8911**
-- Referable Sensitivity: **0.4464**
-- Referable Specificity: **0.9767**
-
-### CBAM (20T, 1744 images)
-
-- Accuracy: **0.6095**
-- Quadratic Kappa: **0.5777**
-- Referable AUC: **0.8778**
-- Referable Sensitivity: **0.3720**
-- Referable Specificity: **0.9736**
-
-### Delta (CBAM - Baseline)
-
-- Accuracy: **-0.0304**
-- QWK: **-0.0222**
-- Referable AUC: **-0.0133**
-- Sensitivity: **-0.0744**
-- Specificity: **-0.0031**
-
-### Interpretation
-
-- Baseline generalizes better externally in current evidence.
-- Both models favor non-referable predictions (high specificity, low sensitivity), which may be suboptimal for screening where missed referable DR is costly.
-- External degradation from APTOS to Messidor is expected, but here CBAM does not improve robustness.
-
----
-
-## 4.3 Class-level behavior (Messidor)
-
-From classification reports:
-
-- Strongest class performance is grade 0 (No DR) for both models.
-- Mild and Moderate classes are weak, especially recall.
-- CBAM severe/PDR behavior is mixed but does not compensate enough at macro level.
-
-Clinical consequence:
-
-- Model is good at identifying clear negatives.
-- Model is weaker at detecting middle severity classes that often matter for referral boundaries.
-
----
-
-## 4.4 Uncertainty behavior analysis (from uncertainty CSVs)
-
-### Baseline uncertainty profile
-
-- Mean entropy: **0.6512**
-- Mean confidence: **0.7710**
-- Entropy (correct vs incorrect): **0.5575 vs 0.8178**
-- Confidence (correct vs incorrect): **0.8195 vs 0.6847**
-
-### CBAM uncertainty profile
-
-- Mean entropy: **0.7443**
-- Mean confidence: **0.7296**
-- Entropy (correct vs incorrect): **0.5959 vs 0.9759**
-- Confidence (correct vs incorrect): **0.8049 vs 0.6120**
-
-### Interpretation
-
-- Good sign: both models produce higher entropy on errors.
-- CBAM is globally more uncertain than baseline (higher entropy, lower confidence) while also being less accurate.
-- This indicates uncertainty is informative, but CBAM currently shifts toward a less decisive and less accurate operating point.
-
----
-
-## 4.5 Coverage-accuracy trade-off (entropy-based selective prediction)
-
-When keeping only lower-entropy samples:
-
-- Baseline at ~50% coverage: accuracy **~0.799**
-- CBAM at ~50% coverage: accuracy **~0.782**
-- At all tested coverage points (50/70/80/90/95%), baseline retains better selective accuracy.
+| Metric | Baseline | CBAM |
+| --- | ---: | ---: |
+| Accuracy | **0.6399** | 0.6095 |
+| Quadratic Kappa | **0.6000** | 0.5784 |
+| Binary Referable AUC | **0.8911** | 0.8778 |
+| Referable Sensitivity | **0.4464** | 0.3720 |
+| Referable Specificity | **0.9767** | 0.9736 |
+| ECE | 0.1338 | **0.1201** |
+| Brier Score | **0.5084** | 0.5170 |
 
 Interpretation:
 
-- Entropy can support a referral/defer strategy.
-- But baseline still dominates CBAM under selective prediction in current fold-0 evidence.
+- Baseline wins on all major discrimination and referral metrics.
+- CBAM is only better on ECE, but worse on Brier and clinical recall.
+- The “CBAM helps” claim is not supported in current evidence.
+
+## 4.2 Delta analysis (CBAM - Baseline)
+
+- Accuracy: -0.0304
+- QWK: -0.0216
+- Referable AUC: -0.0134
+- Referable Sensitivity: -0.0744
+- Referable Specificity: -0.0031
+- ECE: -0.0137 (improvement)
+- Brier: +0.0086 (worse)
+
+Interpretation:
+
+- CBAM’s calibration gain is narrow and not consistent across calibration metrics.
+- Clinically, the sensitivity drop is the most concerning change.
 
 ---
 
-## 5) Is Performance “Good” Overall?
+## 5) Class-Level Clinical Behavior Analysis
 
-Short answer: **Yes for baseline pipeline quality and thesis viability, mixed-to-weak for CBAM benefit claim (so far).**
+From the Phase 3 metrics JSON classification reports:
 
-### Why still good
+- Both models are strong on **No DR** recall (~0.96).
+- Both models are weak on **Mild** recall (~0.05), reflecting difficult boundary/noise.
+- **Moderate** recall is a key separator:
+  - Baseline: 0.2363
+  - CBAM: 0.0951
 
-- Baseline internal performance is excellent for this problem setting.
-- External metrics are realistic and usable (QWK ~0.60, AUC-ref ~0.89), not collapsed.
-- Uncertainty signal is meaningful.
-- Engineering quality is high enough for reproducible thesis work.
+Clinical implication:
 
-### What is not yet good
-
-- CBAM does not currently improve performance.
-- Sensitivity for referable DR is low for both models.
-- Calibration metrics are missing, which weakens the uncertainty claim.
-- Cross-fold claim is currently effectively single-fold (`n_folds=1`), so statistical robustness is not yet demonstrated.
+- Since grade >= 2 is referable, weak Moderate detection directly reduces screening sensitivity.
+- This explains why referable sensitivity remains low, especially for CBAM.
 
 ---
 
-## 6) Root-Cause Hypotheses for CBAM Underperformance
+## 6) Referral-Curve Analysis (Coverage vs Performance)
 
-Most plausible causes (in descending likelihood):
+## 6.1 Baseline referral behavior
 
-1. **Strong baseline ceiling effect**  
-   Baseline already learns high-quality features on fold 0; CBAM extra flexibility may not help under this data regime.
+From `baseline_*_referral_curve.csv`:
 
-2. **Small/noisy dataset + extra module complexity**  
-   CBAM can overfit subtle patterns when labels are noisy and minority classes are scarce.
+- At 50% coverage: accuracy 0.7993, referable sensitivity 0.3393, specificity 0.9890
+- At 80% coverage: accuracy 0.7068, referable sensitivity 0.4557, specificity 0.9888
+- At 95% coverage: accuracy 0.6522, referable sensitivity 0.4311, specificity 0.9802
 
-3. **Optimization dynamics mismatch**  
-   Same LR/schedule may not be equally optimal for CBAM-inserted backbone.
+Interpretation:
 
-4. **Attention placement granularity**  
-   Stage-level CBAM (not inside each residual block) may be too coarse to consistently improve lesion localization.
+- Selective prediction raises retained-set accuracy as expected.
+- Sensitivity improves only modestly with stricter uncertainty filtering.
+- Baseline remains high-specificity biased across operating points.
 
-5. **Evaluation threshold behavior for screening objective**  
-   Model may need class-threshold tuning or cost-sensitive decision policy to improve sensitivity.
+## 6.2 CBAM referral behavior
+
+From `cbam_*_referral_curve.csv`:
+
+- At 50% coverage: accuracy 0.7821, referable sensitivity 0.0189, specificity 1.0000
+- At 80% coverage: accuracy 0.6946, referable sensitivity 0.2710, specificity 0.9915
+- At 95% coverage: accuracy 0.6310, referable sensitivity 0.3645, specificity 0.9864
+
+Interpretation:
+
+- CBAM shows extreme conservatism at lower coverage (near-zero sensitivity at 50%).
+- Across comparable coverage bands, baseline keeps better sensitivity and accuracy.
+- Current CBAM is not suitable as-is for a screening-first referral strategy.
+
+## 6.3 Clinical reading
+
+- Both models currently optimize toward avoiding false positives (high specificity).
+- For DR screening, false negatives are critical; therefore, threshold policy adjustment is necessary.
+- Referral curves justify a next step focused on operating-point selection and calibration post-processing before any deployment-style claim.
 
 ---
 
-## 7) Thesis Framing Recommendation
+## 7) Calibration Analysis (Phase 3 Addition)
 
-Given current evidence, the strongest defensible framing is:
+What changed in Phase 3:
 
-- “A strong reproducible baseline for DR grading with uncertainty quantification”
-- “Attention (CBAM) does not automatically improve cross-domain performance under this setup”
-- “Uncertainty remains clinically useful for selective referral, but calibration must be explicitly quantified”
+- Calibration moved from “pending” to measured (ECE + Brier + reliability figure outputs).
 
-This is still a valid and academically honest contribution, especially with transparent negative findings.
+Observed pattern:
+
+- CBAM has slightly lower ECE.
+- Baseline has better Brier and better discriminative utility.
+
+Why this matters:
+
+- ECE alone is not enough to decide better clinical model quality.
+- Brier and referral sensitivity indicate baseline remains more practical for current objective.
+- Calibration and discrimination must be interpreted jointly.
 
 ---
 
-## 8) Priority Actions Before Final Thesis Claims
+## 8) End-to-End Quality Assessment (Preprocessing → Model → Result)
 
-## Priority 1 (must-do)
+## 8.1 Data preprocessing quality
 
-1. **Add calibration metrics to `evaluate.py`**
+Assessment: strong and fit-for-purpose.
+
+Reasoning:
+
+- Ben Graham pipeline and normalization are correctly integrated.
+- External dataset schema handling and gradable filtering are implemented.
+- No evidence from Phase 3 suggests preprocessing is the bottleneck.
+
+## 8.2 Model formulation quality
+
+Assessment: methodologically strong, mixed empirical outcomes.
+
+Reasoning:
+
+- Baseline and CBAM were compared under consistent evaluator.
+- MC Dropout uncertainty framework is functional.
+- CBAM formulation in current design does not produce net gain.
+
+## 8.3 Implementation quality
+
+Assessment: good research engineering standard.
+
+Reasoning:
+
+- Evaluation scripts now produce complete uncertainty outputs.
+- Artifact set includes JSON/CSV/figures needed for thesis reporting.
+- Phase completion and documentation are now aligned.
+
+## 8.4 Result quality relative to project goal
+
+Assessment: good thesis quality, not clinically deployment-ready.
+
+Reasoning:
+
+- External QWK ~0.60 and referable AUC ~0.89 are useful for academic analysis.
+- Referable sensitivity remains too low for strong screening claims.
+- This is acceptable if discussed transparently as a limitation and active improvement area.
+
+---
+
+## 9) What Is Outdated (and Now Rewritten)
+
+The previous version of this file contained now-outdated assumptions:
+
+- “Calibration metrics missing” -> now completed (ECE/Brier/reliability outputs present).
+- “Phase 3 pending” -> now updated to Phase 3A–3D complete.
+- “Next immediate action is implementing calibration” -> now replaced by post-Phase-3 actions.
+
+This report supersedes those points with current evidence.
+
+---
+
+## 10) Strategic Decision Review: Was Deferring Phase 3E Reasonable?
+
+Short answer: yes, under your current objective.
+
+Reasoning:
+
+- You already obtained strong evidence that current CBAM underperforms baseline externally.
+- Additional folds on a likely suboptimal design may consume substantial resources with limited insight.
+- Redesign-first can produce a better candidate, then fold expansion can validate robustness on improved architecture.
+
+Caveat:
+
+- Keep clear in thesis that robustness claims are currently fold-limited for CBAM.
+
+---
+
+## 11) Recommended Next Steps (Post-Phase-3, Pre-Redesign and Redesign)
+
+## 11.1 Immediate (before redesign experiments)
+
+1. Define a baseline referral operating point (screening-first target).
+2. Apply post-hoc temperature scaling and compare:
    - ECE
-   - Brier score
-   - Reliability diagram
+   - Brier
+   - referable sensitivity/specificity at selected thresholds.
+3. Lock baseline as final benchmark policy.
 
-2. **Fix artifact consistency**
-   - Ensure baseline fold-0 metrics JSON matches the real 19-epoch GPU run.
-   - Remove/rename stale 5-epoch baseline metric artifact to avoid accidental misuse.
+## 11.2 Redesign phase (CBAM)
 
-3. **Explicitly report model operating-point trade-off**
-   - Highlight high specificity / low sensitivity.
-   - Include threshold analysis for referable detection if possible.
+1. Redesign CBAM placement/strength with a focused hypothesis.
+2. Re-train fold 0 first, then external evaluation.
+3. Only if redesigned CBAM shows clear gain, run fold 1–4 expansion.
 
-## Priority 2 (strongly recommended)
+## 11.3 Reporting phase
 
-4. **Run additional CBAM folds (or at least 2-3 folds)**
-   - Current `n_folds=1` is insufficient for robust cross-fold conclusions.
-
-5. **Perform lightweight tuning for CBAM**
-   - Small LR sweep or warmup schedule
-   - Possibly reduce dropout rate or adjust focal alpha sensitivity
-
-## Priority 3 (if time allows)
-
-6. **Selective prediction/referral protocol table**
-   - Coverage vs accuracy and coverage vs sensitivity on referable DR.
-
-7. **Error analysis on hard classes**
-   - Focus on grade 1/2 confusion and false negatives in referable DR.
+1. Prepare thesis tables with both discrimination and calibration metrics.
+2. Explicitly discuss low-sensitivity risk and mitigation via referral policy.
+3. Present CBAM underperformance as an honest, informative ablation result.
 
 ---
 
-## 9) Detailed Strengths and Weaknesses Summary
+## 12) Final Verdict
 
-### Strengths
+Your project is in a strong state academically:
 
-- Clear clinical motivation and realistic problem framing
-- Well-structured codebase and modular pipeline
-- Correctly implemented deterministic-vs-MC dropout behavior
-- External validation executed at full scale
-- Uncertainty outputs available at per-image level for deeper analysis
-- Baseline performance is genuinely strong
+- Pipeline quality is high.
+- Documentation and artifacts now support a full uncertainty-aware evaluation narrative.
+- Baseline is robustly better than current CBAM in practical terms.
 
-### Weaknesses / thesis risks
+What this means:
 
-- CBAM benefit not demonstrated in current evidence
-- Referable sensitivity is low
-- Calibration metrics absent (core trustworthiness gap)
-- Cross-fold statistics currently not meaningful (`n_folds=1`)
-- Some artifact hygiene issues (stale baseline metrics JSON)
-
----
-
-## 10) Final Verdict
-
-You have built a solid and credible DR grading research pipeline from preprocessing through external evaluation. The baseline result is strong and publication-discussion worthy for a bachelor thesis.  
-
-However, Phase 2 currently supports a **“strong baseline + non-improving CBAM ablation”** conclusion, not yet a “CBAM improves performance” conclusion. This is scientifically acceptable if reported transparently.
-
-If you complete calibration reporting, clean metric artifacts, and add more CBAM folds, your final thesis quality will increase significantly and the uncertainty-aware contribution will be much more defensible.
+- You can confidently present a high-quality thesis with transparent evidence.
+- The next high-value move is **targeted CBAM redesign**, not blind continuation of current variant across more folds.
 

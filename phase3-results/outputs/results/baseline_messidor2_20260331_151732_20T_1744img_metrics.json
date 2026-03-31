@@ -1,0 +1,68 @@
+{
+  "run_info": {
+    "model": "baseline",
+    "checkpoint": "baseline_resnet50_fold0_best.pth",
+    "checkpoint_epoch": 13,
+    "checkpoint_best_kappa": 0.9088493152124479,
+    "dataset": "messidor2",
+    "n_images": 1744,
+    "mc_passes": 20,
+    "batch_size": 16,
+    "image_size": 512,
+    "device": "cuda",
+    "timestamp": "2026-03-31T15:18:25.207631"
+  },
+  "accuracy": 0.6399082568807339,
+  "quadratic_kappa": 0.599972462479335,
+  "binary_referable_auc": 0.8911246788708496,
+  "binary_referable_sens": 0.44638949671772427,
+  "binary_referable_spec": 0.9766899766899767,
+  "classification_report": {
+    "No DR": {
+      "precision": 0.7108695652173913,
+      "recall": 0.9646017699115044,
+      "f1-score": 0.818523153942428,
+      "support": 1017.0
+    },
+    "Mild": {
+      "precision": 0.1,
+      "recall": 0.04814814814814815,
+      "f1-score": 0.065,
+      "support": 270.0
+    },
+    "Moderate": {
+      "precision": 0.5985401459854015,
+      "recall": 0.23631123919308358,
+      "f1-score": 0.33884297520661155,
+      "support": 347.0
+    },
+    "Severe": {
+      "precision": 0.45454545454545453,
+      "recall": 0.3333333333333333,
+      "f1-score": 0.38461538461538464,
+      "support": 75.0
+    },
+    "Proliferative DR": {
+      "precision": 0.35714285714285715,
+      "recall": 0.42857142857142855,
+      "f1-score": 0.38961038961038963,
+      "support": 35.0
+    },
+    "accuracy": 0.6399082568807339,
+    "macro avg": {
+      "precision": 0.4442196045782209,
+      "recall": 0.40219318383149955,
+      "f1-score": 0.3993183806749627,
+      "support": 1744.0
+    },
+    "weighted avg": {
+      "precision": 0.5758249355355105,
+      "recall": 0.6399082568807339,
+      "f1-score": 0.5791565811001496,
+      "support": 1744.0
+    }
+  },
+  "ece": 0.13382182605222825,
+  "brier_score": 0.5083900094032288,
+  "ece_bins": 15
+}

@@ -236,17 +236,17 @@ python src/compute_cross_fold_stats.py --model cbam_resnet50 --use_metrics
 
 ## Phase 3D — Re-evaluation with calibrated outputs
 
-- [ ] Re-run baseline Messidor (full)
-- [ ] Re-run CBAM Messidor (full)
-- [ ] Produce calibrated model comparison summary
+- [x] Re-run baseline Messidor (full)
+- [x] Re-run CBAM Messidor (full)
+- [x] Produce calibrated model comparison summary
 
 ## Phase 3E — Robustness extension
 
-- [ ] Train CBAM fold 1
-- [ ] Train CBAM fold 2
-- [ ] Train CBAM fold 3
-- [ ] Train CBAM fold 4
-- [ ] Run cross-fold aggregation
+- [ ] Train CBAM fold 1 *(deferred; redesign path selected)*
+- [ ] Train CBAM fold 2 *(deferred; redesign path selected)*
+- [ ] Train CBAM fold 3 *(deferred; redesign path selected)*
+- [ ] Train CBAM fold 4 *(deferred; redesign path selected)*
+- [ ] Run cross-fold aggregation *(deferred with folds 1–4)*
 
 ## Phase 3F — Reporting integration
 
@@ -257,6 +257,27 @@ python src/compute_cross_fold_stats.py --model cbam_resnet50 --use_metrics
 ---
 
 ## 5) Risks and Mitigations
+
+## 4.1) Phase 3D Outcome Snapshot (Executed)
+
+Messidor-2 full re-evaluation completed for both models (T=20, n=1744):
+
+| Metric | Baseline | CBAM |
+| --- | ---: | ---: |
+| Accuracy | **0.6399** | 0.6095 |
+| QWK | **0.6000** | 0.5784 |
+| Referable AUC | **0.8911** | 0.8778 |
+| Referable Sensitivity | **0.4464** | 0.3720 |
+| Referable Specificity | **0.9767** | 0.9736 |
+| ECE | 0.1338 | **0.1201** |
+| Brier Score | **0.5084** | 0.5170 |
+
+Key reading:
+
+- Baseline remains stronger on discrimination and referable sensitivity.
+- CBAM shows slightly better ECE but worse Brier and clinical recall.
+- Calibration/referral artifacts were generated successfully (`*_metrics.json`, `*_reliability.png`, `*_referral_curve.csv`).
+- For this cycle, Phase 3E is intentionally deferred in favor of CBAM redesign.
 
 - **Risk**: ECE appears poor for both models.  
   **Mitigation**: report transparently, include temperature scaling as future work.

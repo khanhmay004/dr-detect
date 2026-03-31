@@ -1,7 +1,7 @@
 # Research Project: Uncertainty-Aware Attention CNN for Diabetic Retinopathy Grading
 
 > **Document Role**: Single source-of-truth for the `dr-detect` project.
-> **Last Updated**: 2026-03-31 (Phase 2 complete, Phase 3 ready)
+> **Last Updated**: 2026-03-31 (Phase 3D complete; redesign planning next)
 > **Project Type**: Bachelor's Thesis — Data Science (Deep Learning in Healthcare)
 > **Timeline**: 1 month (01/03/2026 – 31/03/2026)
 
@@ -552,15 +552,16 @@ src/
 | Messidor-2 full evaluation (CBAM, T=20)        | ✅ Complete | 1,744 gradable images |
 | Phase-2 artifact consolidation (`phase2-results`) | ✅ Complete | Logs, checkpoints, figures, metrics archived |
 
-### 11.4. Pending Work (Transition to Phase 3)
+### 11.4. Pending Work (Post-Phase 3D)
 
 | Task                                           | Status             | Priority | Dependencies |
 | ---------------------------------------------- | ------------------ | -------- | ------------ |
-| ECE + Brier + reliability diagram in `evaluate.py` | ⬜ Not implemented | **Blocking** | Phase 2 metrics available ✅ |
-| Referral threshold analysis (coverage-risk)    | ⬜ Not implemented | **Blocking** | Entropy outputs available ✅ |
-| CBAM folds 1-4 training                        | ⬜ Not started     | High     | Fold 0 complete ✅ |
-| Cross-fold stats for CBAM (mean ± std)         | ⬜ Not started     | High     | CBAM folds 1-4 |
-| 4-model ablation table (A–D)                   | ⬜ Not started     | High     | Phase 3 evaluation scripts |
+| ECE + Brier + reliability diagram in `evaluate.py` | ✅ Implemented | Complete | Phase 3A/3B complete |
+| Referral threshold analysis (coverage-risk)    | ✅ Implemented | Complete | Phase 3C complete |
+| Full Messidor re-evaluation with calibration outputs (baseline + CBAM) | ✅ Complete | Complete | Phase 3D complete |
+| CBAM folds 1-4 training                        | ⏸ Deferred (redesign-first) | High     | New CBAM design |
+| Cross-fold stats for CBAM (mean ± std)         | ⏸ Deferred (redesign-first) | High     | CBAM folds 1-4 |
+| 4-model ablation table (A–D)                   | ⏸ Deferred to post-redesign | High     | Updated model variants |
 | Publication-quality final figures              | ⬜ Not started     | Medium   | Phase 3 results complete |
 | Thesis writing integration                     | ⬜ Not started     | High     | Core experiments complete |
 
@@ -572,7 +573,33 @@ src/
    - Baseline: Acc **0.6399**, QWK **0.6000**, Ref-AUC **0.8911**, Sens **0.4464**, Spec **0.9767**
    - CBAM: Acc **0.6095**, QWK **0.5777**, Ref-AUC **0.8778**, Sens **0.3720**, Spec **0.9736**
 3. **Interpretation**: Baseline currently outperforms CBAM on both internal fold-0 and external validation.
-4. **Next step**: proceed to **Phase 3 (evaluation + uncertainty calibration + referral analysis)**.
+4. **Next step**: baseline threshold policy + calibration post-processing, then CBAM redesign.
+
+### 11.5. Phase 3D Results (✅ Complete — 2026-03-31)
+
+Phase 3D full Messidor-2 reruns completed with calibration and referral artifacts enabled (`T=20`, `n=1744`).
+
+| Metric | Baseline | CBAM |
+| --- | ---: | ---: |
+| Accuracy | **0.6399** | 0.6095 |
+| QWK | **0.6000** | 0.5784 |
+| Binary Referable AUC | **0.8911** | 0.8778 |
+| Referable Sensitivity | **0.4464** | 0.3720 |
+| Referable Specificity | **0.9767** | 0.9736 |
+| ECE | 0.1338 | **0.1201** |
+| Brier Score | **0.5084** | 0.5170 |
+
+Interpretation:
+
+- Baseline still outperforms CBAM on core classification and referral discrimination metrics.
+- CBAM has slightly lower ECE, but this does not translate to better referral sensitivity or overall utility.
+- Clinical bottleneck remains low referable sensitivity for both models at default decision policy; threshold/referral tuning is required before deployment interpretation.
+
+Artifacts generated:
+
+- `*_metrics.json` with ECE/Brier
+- `*_reliability.png`
+- `*_referral_curve.csv` and referral curve figures
 
 ---
 
@@ -612,11 +639,11 @@ src/
 
 ### Issue 5 — ECE Not Computed in evaluate.py
 
-**Severity**: HIGH (for thesis quality) | **Status**: ⬜ NOT FIXED
+**Severity**: HIGH (for thesis quality) | **Status**: ✅ FIXED (2026-03-31)
 
-**Problem**: `evaluate.py` computes accuracy, QWK, AUC but not ECE or Brier score. Since the thesis's core claim involves uncertainty, omitting calibration metrics is a critical gap.
+**Problem**: `evaluate.py` originally computed accuracy, QWK, and AUC but not ECE or Brier score. Since the thesis's core claim involves uncertainty, omitting calibration metrics was a critical gap.
 
-**Fix needed**: Add `compute_ece()` function and reliability diagram plot.
+**Fix**: Added `compute_ece()`, `compute_brier_score()`, reliability diagram generation, and referral-curve outputs to `evaluate.py`. Metrics JSON now includes `ece`, `brier_score`, and `ece_bins`.
 
 ### Issue 6 — GaussNoise API Deprecation
 
@@ -692,7 +719,7 @@ python src/evaluate.py --checkpoint outputs/checkpoints/cbam_resnet50_fold0_best
 
 **Impact**: HIGH | **Effort**: LOW
 
-The Chopra 2025 survey explicitly calls out the absence of calibration metrics in DR papers. Simply adding ECE computation to `evaluate.py` closes this gap. Implementation: bin-based ECE + reliability diagram.
+The Chopra 2025 survey explicitly calls out the absence of calibration metrics in DR papers. This gap is now closed in this project via bin-based ECE, Brier score, and reliability diagrams integrated into the evaluation pipeline.
 
 ### Gap 2 — Uncertainty-Aware Referral Thresholding
 
@@ -783,13 +810,13 @@ Fixed MCDropout deterministic validation, gradient clipping, progress bar, basel
 - CBAM folds 1–4 for robust cross-fold estimate
 - Calibration and referral analysis
 
-### Phase 3: Evaluation & Uncertainty Analysis — 🎯 NEXT PHASE
+### Phase 3: Evaluation & Uncertainty Analysis — ✅ PHASE 3A–3D COMPLETE
 
-- Add ECE + Brier score + reliability diagram to `evaluate.py`
-- Implement referral-threshold workflow (coverage vs accuracy/sensitivity/specificity)
-- Run uncertainty-stratified analysis (correct vs incorrect, per-class entropy)
-- Generate final uncertainty figures and case studies for thesis chapter
-- Prepare model-comparison table using calibrated metrics (not only QWK/AUC)
+- ✅ Added ECE + Brier score + reliability diagram to `evaluate.py`
+- ✅ Implemented referral-threshold workflow (coverage vs accuracy/sensitivity/specificity)
+- ✅ Completed full Messidor-2 reruns for baseline and CBAM with calibrated outputs
+- ✅ Generated uncertainty artifacts for reporting
+- ⏭ Next: threshold/referral operating-point selection + temperature scaling
 
 ### Phase 4: Ablation Study (Days 9–10)
 
@@ -847,7 +874,10 @@ Fixed MCDropout deterministic validation, gradient clipping, progress bar, basel
 - Confidence is lower for incorrect predictions (both models).
 - Higher-severity/ambiguous classes show higher entropy than grade 0.
 - Baseline shows lower average entropy and higher confidence than CBAM in current runs.
-- **Calibration metrics (ECE/Brier) are still pending** and will be completed in Phase 3.
+- Calibration now quantified:
+  - Baseline: ECE **0.1338**, Brier **0.5084**
+  - CBAM: ECE **0.1201**, Brier **0.5170**
+- Practical reading: CBAM is slightly better on ECE, but baseline is better on Brier and all key discrimination metrics; calibration gains are not sufficient to offset lower clinical recall.
 
 ---
 

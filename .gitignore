@@ -10,6 +10,7 @@ messidor-2/
 data/
 dr-results/
 phase2-results/
+phase3-results/
 *.csv
 *.zip
 *.tar.gz
