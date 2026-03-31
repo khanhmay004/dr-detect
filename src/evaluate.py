@@ -9,14 +9,16 @@ computes:
 - **Predictive entropy** H[p̄]:  −Σ p̄_c · log(p̄_c).
   High entropy → the model is uncertain about this image.
 
-The results are saved as:
-  ``outputs/results/messidor2_uncertainty.csv``
-with columns: image_id, predicted_grade, confidence, entropy, p0 … p4.
+The results are saved with timestamped, metadata-rich filenames::
+
+    outputs/results/{model}_messidor2_{timestamp}_{T}T_{N}img_uncertainty.csv
+    outputs/results/{model}_messidor2_{timestamp}_{T}T_{N}img_metrics.json
 
 Usage::
 
     python evaluate.py --checkpoint outputs/checkpoints/cbam_resnet50_fold0_best.pth
     python evaluate.py --checkpoint best.pth --mc_passes 50
+    python evaluate.py --checkpoint best.pth --model baseline --max_images 10 --mc_passes 3
 
 MLOps notes
 -----------
@@ -31,6 +33,7 @@ MLOps notes
 
 import argparse
 import json
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -142,11 +145,21 @@ def mc_dropout_inference(
 #  Metrics (when ground-truth labels are available)
 # =========================================================================
 
-def compute_metrics(labels, predictions, mean_probs) -> dict:
-    """Compute standard classification metrics."""
+def compute_metrics(labels: np.ndarray, predictions: np.ndarray, mean_probs: np.ndarray) -> dict:
+    """Compute standard classification metrics including binary referable DR metrics.
+
+    Args:
+        labels: Ground truth grade labels, shape (N,).
+        predictions: Predicted grade labels, shape (N,).
+        mean_probs: Mean predicted probabilities, shape (N, C).
+
+    Returns:
+        Dictionary containing accuracy, quadratic_kappa, binary_referable_auc,
+        binary_referable_sens, binary_referable_spec, and classification_report.
+    """
     from sklearn.metrics import (
         accuracy_score, cohen_kappa_score,
-        classification_report, roc_auc_score,
+        classification_report, roc_auc_score, confusion_matrix,
     )
 
     accuracy = accuracy_score(labels, predictions)
@@ -154,22 +167,36 @@ def compute_metrics(labels, predictions, mean_probs) -> dict:
 
     report = classification_report(
         labels, predictions,
+        labels=list(DR_GRADES.keys()),  # Explicitly specify all 5 classes
         target_names=list(DR_GRADES.values()),
         output_dict=True, zero_division=0,
     )
 
-    # Binary referable DR  (grade >= 2)
+    # Binary referable DR  (grade >= 2 = referable, < 2 = non-referable)
     binary_labels = (labels >= 2).astype(int)
+    binary_preds = (predictions >= 2).astype(int)
     binary_probs = mean_probs[:, 2:].sum(axis=1)
+
+    # AUC from probability scores
     try:
         binary_auc = roc_auc_score(binary_labels, binary_probs)
     except ValueError:
         binary_auc = 0.0
 
+    # Sensitivity (recall of referable) & Specificity (recall of non-referable)
+    # confusion_matrix returns [[TN, FP], [FN, TP]] for labels=[0,1]
+    tn, fp, fn, tp = confusion_matrix(
+        binary_labels, binary_preds, labels=[0, 1]
+    ).ravel()
+    binary_sens = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+    binary_spec = tn / (tn + fp) if (tn + fp) > 0 else 0.0
+
     return {
         "accuracy": float(accuracy),
         "quadratic_kappa": float(kappa),
         "binary_referable_auc": float(binary_auc),
+        "binary_referable_sens": float(binary_sens),
+        "binary_referable_spec": float(binary_spec),
         "classification_report": report,
     }
 
@@ -192,7 +219,7 @@ def plot_uncertainty_histogram(entropy, predictions, save_path=None):
 
     ax.set_xlabel("Predictive Entropy", fontsize=12)
     ax.set_ylabel("Count", fontsize=12)
-    ax.set_title("Uncertainty Distribution — Messidor-2", fontsize=14, fontweight="bold")
+    ax.set_title("Uncertainty Distribution - Messidor-2", fontsize=14, fontweight="bold")
     ax.legend(fontsize=10)
     ax.grid(alpha=0.3)
     plt.tight_layout()
@@ -215,9 +242,9 @@ def plot_confidence_vs_entropy(confidence, entropy, predictions, save_path=None)
                 c=DR_COLORS[grade], label=name, alpha=0.5, s=20,
             )
 
-    ax.set_xlabel("Confidence (max p̄)", fontsize=12)
+    ax.set_xlabel("Confidence (max p)", fontsize=12)
     ax.set_ylabel("Predictive Entropy", fontsize=12)
-    ax.set_title("Confidence vs. Uncertainty — Messidor-2",
+    ax.set_title("Confidence vs. Uncertainty - Messidor-2",
                  fontsize=14, fontweight="bold")
     ax.legend(fontsize=10)
     ax.grid(alpha=0.3)
@@ -277,6 +304,8 @@ def main():
                         help="Number of stochastic forward passes T")
     parser.add_argument("--no_labels", action="store_true",
                         help="Set if Messidor-2 CSV has no ground-truth grades")
+    parser.add_argument("--max_images", type=int, default=None,
+                        help="Limit dataset to N images (for smoke testing)")
     args = parser.parse_args()
 
     # ---- Setup ----
@@ -286,7 +315,7 @@ def main():
     print(f"Device: {device}")
 
     # ---- Dataset ----
-    print("\nLoading Messidor-2 dataset …")
+    print("\nLoading Messidor-2 dataset ...")
     dataset = MessidorDataset(
         csv_path=str(MESSIDOR_CSV),
         image_dir=str(MESSIDOR_IMAGES),
@@ -294,6 +323,12 @@ def main():
         preprocess=True,
         labels_available=not args.no_labels,
     )
+
+    # Truncate for smoke testing
+    if args.max_images and args.max_images < len(dataset):
+        dataset.df = dataset.df.head(args.max_images).reset_index(drop=True)
+        print(f"  [SMOKE TEST] Truncated to {len(dataset)} images")
+
     dataloader = torch.utils.data.DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -302,9 +337,16 @@ def main():
         pin_memory=True,
     )
     print(f"  Images: {len(dataset)}")
+    if hasattr(dataset, 'COL_GRADABLE') and dataset.COL_GRADABLE in dataset.df.columns:
+        print(f"  (filtered to gradable images only)")
+
+    # ---- Build run tag for output file naming ----
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    n_images = len(dataset)
+    run_tag = f"{args.model}_messidor2_{timestamp}_{args.mc_passes}T_{n_images}img"
 
     # ---- Model ----
-    print(f"\nLoading {args.model.upper()} model from checkpoint …")
+    print(f"\nLoading {args.model.upper()} model from checkpoint ...")
     if args.model == "baseline":
         model = create_baseline_model(
             num_classes=NUM_CLASSES,
@@ -323,16 +365,16 @@ def main():
 
     epoch = ckpt.get("epoch", "?")
     kappa = ckpt.get("best_kappa", "?")
-    print(f"  Checkpoint epoch: {epoch}  |  best κ: {kappa}")
+    print(f"  Checkpoint epoch: {epoch}  |  best kappa: {kappa}")
 
     # ---- MC Dropout Inference ----
-    print(f"\nRunning MC Dropout inference (T = {args.mc_passes}) …")
+    print(f"\nRunning MC Dropout inference (T = {args.mc_passes}) ...")
     results = mc_dropout_inference(
         model, dataloader, device, n_passes=args.mc_passes,
     )
 
     # ---- Results ----
-    csv_path = RESULTS_DIR / "messidor2_uncertainty.csv"
+    csv_path = RESULTS_DIR / f"{run_tag}_uncertainty.csv"
     save_results_csv(results, csv_path)
 
     # ---- Metrics (if labels available) ----
@@ -344,27 +386,43 @@ def main():
         print("  MESSIDOR-2 EVALUATION")
         print(f"{'=' * 50}")
         print(f"  Accuracy:          {metrics['accuracy']:.4f}")
-        print(f"  Quadratic κ:       {metrics['quadratic_kappa']:.4f}")
+        print(f"  Quadratic kappa:   {metrics['quadratic_kappa']:.4f}")
         print(f"  Referable DR AUC:  {metrics['binary_referable_auc']:.4f}")
+        print(f"  Referable DR Sens: {metrics['binary_referable_sens']:.4f}")
+        print(f"  Referable DR Spec: {metrics['binary_referable_spec']:.4f}")
 
-        # Save metrics JSON
-        metrics_path = RESULTS_DIR / "messidor2_metrics.json"
-        save_metrics = {k: v for k, v in metrics.items()
-                        if k != "classification_report"}
-        save_metrics["classification_report"] = metrics["classification_report"]
+        # Save metrics JSON with run metadata
+        metrics_path = RESULTS_DIR / f"{run_tag}_metrics.json"
+        save_metrics = {
+            "run_info": {
+                "model": args.model,
+                "checkpoint": str(Path(args.checkpoint).name),
+                "checkpoint_epoch": epoch,
+                "checkpoint_best_kappa": kappa,
+                "dataset": "messidor2",
+                "n_images": n_images,
+                "mc_passes": args.mc_passes,
+                "batch_size": args.batch_size,
+                "image_size": IMAGE_SIZE,
+                "device": str(device),
+                "timestamp": datetime.now().isoformat(),
+            },
+        }
+        for k, v in metrics.items():
+            save_metrics[k] = v
         with open(metrics_path, "w") as f:
             json.dump(save_metrics, f, indent=2)
         print(f"\n  Metrics JSON: {metrics_path}")
 
     # ---- Plots ----
-    print("\nGenerating plots …")
+    print("\nGenerating plots ...")
     plot_uncertainty_histogram(
         results["entropy"], results["predictions"],
-        save_path=FIGURES_DIR / "messidor2_entropy_histogram.png",
+        save_path=FIGURES_DIR / f"{run_tag}_entropy_hist.png",
     )
     plot_confidence_vs_entropy(
         results["confidence"], results["entropy"], results["predictions"],
-        save_path=FIGURES_DIR / "messidor2_confidence_vs_entropy.png",
+        save_path=FIGURES_DIR / f"{run_tag}_conf_vs_ent.png",
     )
 
     # ---- Summary statistics ----
@@ -379,10 +437,10 @@ def main():
     # Flag high-uncertainty predictions
     high_unc_mask = results["entropy"] > np.percentile(results["entropy"], 90)
     n_high = high_unc_mask.sum()
-    print(f"\n  ⚠ {n_high} images ({100 * n_high / len(results['entropy']):.1f}%) "
+    print(f"\n  [!] {n_high} images ({100 * n_high / len(results['entropy']):.1f}%) "
           f"above 90th-percentile entropy — consider manual review.")
 
-    print("\n✓ Evaluation complete!")
+    print("\n[OK] Evaluation complete!")
 
 
 if __name__ == "__main__":

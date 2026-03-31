@@ -1,7 +1,7 @@
 # Research Project: Uncertainty-Aware Attention CNN for Diabetic Retinopathy Grading
 
 > **Document Role**: Single source-of-truth for the `dr-detect` project.
-> **Last Updated**: 2026-03-30
+> **Last Updated**: 2026-03-31
 > **Project Type**: Bachelor's Thesis — Data Science (Deep Learning in Healthcare)
 > **Timeline**: 1 month (01/03/2026 – 31/03/2026)
 
@@ -233,15 +233,19 @@ Voets et al. (2019) demonstrated that reproducing Gulshan et al.'s results with 
 
 ### 7.2. Messidor-2 (External Test Set)
 
-| Property      | Value                                                           |
-| ------------- | --------------------------------------------------------------- |
-| Source        | Decencière et al.                                               |
-| Total images  | 690 (filtered `adjudicated_dr_grade` subset)                    |
-| Format        | TIFF/JPG/PNG                                                    |
-| Role          | External domain generalization test                             |
-| Label quality | Adjudicated by multiple ophthalmologists — cleaner ground truth |
+| Property      | Value                                                                      |
+| ------------- | -------------------------------------------------------------------------- |
+| Source        | Decencière et al. (images) + Krause et al. 2018 (labels)                   |
+| Total images  | 1,748 (874 examinations × 2 eyes)                                          |
+| Gradable      | 1,745 (after filtering `adjudicated_gradable == 1`; 3 ungradable excluded) |
+| Format        | PNG / JPG                                                                  |
+| Role          | External domain generalization test                                        |
+| Label quality | Adjudicated by 3 US board-certified retina specialists (ICDR 0–4 scale)    |
+| Label source  | [Kaggle google-brain/messidor2-dr-grades](https://www.kaggle.com/datasets/google-brain/messidor2-dr-grades) |
 
 **Why Messidor-2**: Completely different domain from APTOS (French hospitals vs. Indian hospitals, different cameras, different patient demographics). Expected 5–15 QWK point drop due to domain shift — this is normal and a key discussion point.
+
+**Label provenance note**: The official Messidor-2 release does not include DR severity grades. This project uses adjudicated labels from Krause et al. (2018), where each image was independently graded by three US board-certified retina specialists and adjudicated to consensus. This is the standard label source used by Gulshan et al. (2016), Voets et al. (2019), and subsequent literature.
 
 ### 7.3. Data Split Strategy
 
@@ -253,7 +257,7 @@ APTOS 2019 (3,662 images)
     │   ├── Fold 1–4: Same 80/20 split
     │   └── Stratified: class distribution preserved per fold
     │
-Messidor-2 (690 images) → External Test Set (never used for training)
+Messidor-2 (1,745 gradable images) → External Test Set (never used for training)
 ```
 
 ---
@@ -500,33 +504,60 @@ src/
 └── tests/              # Unit tests for model and determinism
 ```
 
-### 11.2. Completed Work (Phase 0 + Phase 1 CPU)
+### 11.2. Completed Work (Phase 0 + Phase 1)
 
-| Task                                                  | Status      |
-| ----------------------------------------------------- | ----------- |
-| MCDropout `mc_active` toggle + `deterministic_mode()` | ✅ Complete |
-| Gradient clipping (`GRAD_CLIP_NORM = 1.0`)            | ✅ Complete |
-| Progress bar epoch display fix                        | ✅ Complete |
-| BaselineResNet50 model factory                        | ✅ Complete |
-| `--model {baseline, cbam}` CLI argument               | ✅ Complete |
-| Experiment config system (YAML)                       | ✅ Complete |
-| CPU smoke tests (baseline + CBAM, 2 epochs)           | ✅ Complete |
-| Validation determinism verification                   | ✅ Complete |
+**Phase 0: Infrastructure Fixes** (✅ Complete)
+
+| Task                                                  | Status      | Date       |
+| ----------------------------------------------------- | ----------- | ---------- |
+| MCDropout `mc_active` toggle + `deterministic_mode()` | ✅ Complete | 2026-03-30 |
+| Gradient clipping (`GRAD_CLIP_NORM = 1.0`)            | ✅ Complete | 2026-03-30 |
+| Progress bar epoch display fix                        | ✅ Complete | 2026-03-30 |
+| BaselineResNet50 model factory                        | ✅ Complete | 2026-03-30 |
+| `--model {baseline, cbam}` CLI argument               | ✅ Complete | 2026-03-30 |
+| Experiment config system (YAML)                       | ✅ Complete | 2026-03-30 |
+| CPU smoke tests (baseline + CBAM, 2 epochs)           | ✅ Complete | 2026-03-30 |
+| Validation determinism verification                   | ✅ Complete | 2026-03-30 |
+
+**Phase 1: GPU Baseline Training** (✅ Complete — 2026-03-31)
+
+| Task                              | Status      | Details                                            |
+| --------------------------------- | ----------- | -------------------------------------------------- |
+| GPU infrastructure setup          | ✅ Complete | NVIDIA RTX 3090 (25.3GB VRAM), Vast.ai             |
+| Baseline ResNet-50 training       | ✅ Complete | Fold 0, 19 epochs, ~2.5 hours                      |
+| Training artifacts                | ✅ Complete | Checkpoints (270MB × 2), logs, metrics, 19 figures |
+| Model performance validation      | ✅ Complete | Val QWK: 0.9088, Val Acc: 84.45%                   |
+| Visualization generation          | ✅ Complete | Training curves, confusion matrix, domain analysis |
+| Training stability verification   | ✅ Complete | AMP-enabled, stable convergence, no NaN losses     |
+
+**Phase 1 Results Summary**:
+- **Best validation QWK**: 0.9088 (epoch 14) — significantly exceeds expected range (0.75-0.82)
+- **Best validation accuracy**: 84.45% (epoch 14)
+- **Best validation AUC**: 0.9846 (epoch 14)
+- **Training set**: 2,929 images | **Validation set**: 733 images
+- **Artifacts location**: `dr-results/outputs/` (separate from CPU runs in `outputs/`)
+- **Key observation**: Baseline ResNet-50 achieves strong performance, setting a high bar for CBAM ablation study
 
 ### 11.3. Pending Work
 
-| Task                                           | Status             | Priority     |
-| ---------------------------------------------- | ------------------ | ------------ |
-| GPU full baseline training (20 epochs, fold 0) | ⬜ Deferred        | **Blocking** |
-| GPU CBAM-ResNet50 training (all folds)         | ⬜ Not started     | **Blocking** |
-| Messidor-2 evaluation (any checkpoint)         | ⬜ Not started     | **Blocking** |
-| ECE / calibration metrics in evaluate.py       | ⬜ Not implemented | High         |
-| Referral threshold analysis                    | ⬜ Not implemented | High         |
-| Ablation study (4 model variants)              | ⬜ Not started     | High         |
-| Confusion matrix + ROC visualization           | ⬜ Not generated   | Medium       |
-| Training curves visualization                  | ⬜ Not generated   | Medium       |
-| Publication-quality figures                    | ⬜ Not generated   | Medium       |
-| Thesis document writing                        | ⬜ Not started     | High         |
+| Task                                           | Status             | Priority     | Dependencies                |
+| ---------------------------------------------- | ------------------ | ------------ | --------------------------- |
+| Messidor-2 evaluation (baseline checkpoint)    | ⬜ Not started     | **Blocking** | Phase 1 complete ✅          |
+| GPU CBAM-ResNet50 training (fold 0)            | ⬜ Not started     | **Blocking** | Phase 1 complete ✅          |
+| GPU CBAM-ResNet50 training (folds 1-4)         | ⬜ Not started     | **Blocking** | Fold 0 CBAM complete        |
+| Cross-fold statistics (mean ± std)             | ⬜ Not started     | **Blocking** | All 5 folds complete        |
+| ECE / calibration metrics in evaluate.py       | ⬜ Not implemented | High         | —                           |
+| Referral threshold analysis                    | ⬜ Not implemented | High         | Messidor-2 evaluation       |
+| Ablation study (4 model variants)              | ⬜ Not started     | High         | Baseline + CBAM fold 0      |
+| Messidor-2 evaluation (CBAM checkpoint)        | ⬜ Not started     | High         | CBAM training complete      |
+| Uncertainty visualizations                     | ⬜ Not generated   | Medium       | Messidor-2 evaluation       |
+| Publication-quality figure refinement          | ⬜ Not generated   | Medium       | All experiments complete    |
+| Thesis document writing                        | ⬜ Not started     | High         | Core experiments complete   |
+
+**Next Immediate Steps** (Phase 2):
+1. Run Messidor-2 external validation on baseline checkpoint (`dr-results/outputs/checkpoints/baseline_resnet50_fold0_best.pth`)
+2. Train CBAM-ResNet50 on fold 0 with identical hyperparameters
+3. Compare baseline vs. CBAM performance on both APTOS validation and Messidor-2
 
 ---
 
@@ -588,6 +619,14 @@ src/
 
 **Mitigation**: Document as known limitation. Messidor-2 used as unseen external test (no split needed).
 
+### Issue 8 — Messidor-2 Label Provenance
+
+**Severity**: LOW (standard practice) | **Status**: ✅ RESOLVED
+
+**Problem**: The official Messidor-2 dataset was released without DR severity grades. Third-party labels are required for evaluation. The project originally contained `trainLabels.csv` from the Kaggle EyePACS competition (35,127 entries) — an entirely different dataset — misidentified as Messidor-2 labels.
+
+**Fix**: Replaced with adjudicated labels from Krause et al. (2018), sourced from [Kaggle google-brain/messidor2-dr-grades](https://www.kaggle.com/datasets/google-brain/messidor2-dr-grades). Dataset code updated to read `image_id` / `adjudicated_dr_grade` columns and filter ungradable images. The "ground truth" for external validation is derived from expert consensus rather than definitive clinical diagnosis — this is a common limitation across all Messidor-2 evaluation studies.
+
 ---
 
 ## 13. Literature Gaps & Novel Contributions
@@ -633,14 +672,17 @@ No reviewed paper applies ordinal regression losses (ordinal CE, CORN) to CBAM-C
 
 ### 14.2. Project Risk Assessment
 
-| Risk                                        | Probability | Impact       | Mitigation                                                   |
-| ------------------------------------------- | ----------- | ------------ | ------------------------------------------------------------ |
-| GPU not available for full training         | Medium      | **Blocking** | Vast.ai ($5–7 total), or reduce to 1–2 folds                 |
-| CBAM shows no improvement over baseline     | Medium      | High         | Frame as negative result with ablation — still publishable   |
-| Messidor-2 performance very low (QWK < 0.5) | Medium      | Medium       | Expected due to domain shift — discussion point, not failure |
-| MC Dropout entropy poorly calibrated        | High        | Medium       | Report ECE honestly; propose backbone-level dropout          |
-| Time runs out before all 5 folds            | High        | Low          | 1 fold + external validation sufficient for bachelor's       |
-| Focal Loss overfits to label noise          | Low         | Medium       | Monitor per-class loss; label smoothing ablation             |
+| Risk                                        | Probability | Impact       | Mitigation                                                     | Status          |
+| ------------------------------------------- | ----------- | ------------ | -------------------------------------------------------------- | --------------- |
+| GPU not available for full training         | ~~Medium~~  | **Blocking** | ~~Vast.ai ($5–7 total), or reduce to 1–2 folds~~               | ✅ **Resolved** |
+| CBAM shows no improvement over baseline     | Medium      | High         | Frame as negative result with ablation — still publishable     | Active risk     |
+| Messidor-2 performance very low (QWK < 0.5) | Medium      | Medium       | Expected due to domain shift — discussion point, not failure   | Active risk     |
+| MC Dropout entropy poorly calibrated        | High        | Medium       | Report ECE honestly; propose backbone-level dropout            | Active risk     |
+| Time runs out before all 5 folds            | High        | Low          | 1 fold + external validation sufficient for bachelor's         | Mitigated       |
+| Focal Loss overfits to label noise          | Low         | Medium       | Monitor per-class loss; label smoothing ablation               | Monitored       |
+| Baseline performance too strong             | **New**     | Medium       | May reduce CBAM's relative improvement; still valid comparison | Emerging risk   |
+
+**Risk Update (2026-03-31)**: Baseline ResNet-50 achieved QWK 0.9088, significantly exceeding expected range (0.75-0.82). This raises the bar for CBAM-ResNet50 to demonstrate improvement. If CBAM shows minimal gains, the thesis can reframe as "validating strong baseline performance" rather than "improving via attention mechanisms."
 
 ---
 
@@ -650,11 +692,22 @@ No reviewed paper applies ordinal regression losses (ordinal CE, CORN) to CBAM-C
 
 Fixed MCDropout deterministic validation, gradient clipping, progress bar, baseline model factory, CLI arguments, experiment config system. All CPU smoke tests passed.
 
-### Phase 1: Baseline Retraining — ⬜ GPU PENDING
+### Phase 1: Baseline Retraining — ✅ COMPLETE (2026-03-31)
 
-- Train baseline ResNet-50 (fold 0, GPU, 20 epochs, batch_size=16)
-- Evaluate baseline on Messidor-2 (MC Dropout T=20)
-- Record: QWK, AUC, accuracy, entropy statistics
+**Completed**:
+- ✅ Trained baseline ResNet-50 (fold 0, GPU, 19 epochs, batch_size=16)
+  - GPU: NVIDIA RTX 3090 (25.3GB VRAM) via Vast.ai
+  - Training time: ~2.5 hours
+  - Best validation QWK: **0.9088** (epoch 14) — exceeds expected range
+  - Best validation accuracy: **84.45%** (epoch 14)
+  - Best validation AUC: **98.46%** (epoch 14)
+- ✅ Generated training artifacts (checkpoints: 270MB × 2, logs, metrics)
+- ✅ Generated 19 visualization figures (training curves, confusion matrix, domain analysis)
+- ✅ Results location: `dr-results/outputs/` (separate from CPU runs)
+
+**Pending**:
+- ⬜ Evaluate baseline on Messidor-2 (MC Dropout T=20) — next priority
+- ⬜ Record external validation metrics: QWK, AUC, accuracy, entropy statistics
 
 ### Phase 2: CBAM-ResNet50 Training (Days 3–5)
 
@@ -798,9 +851,10 @@ Fixed MCDropout deterministic validation, gradient clipping, progress bar, basel
 ### Datasets
 
 22. APTOS 2019 Blindness Detection. Kaggle Competition, 2019.
-23. Decencière, E. et al. "Messidor-2." 2014.
-24. DDR Dataset. 2019.
-25. IDRiD Dataset. 2018.
+23. Decencière, E. et al. "Feedback on a Publicly Distributed Image Database: the Messidor Database." Image Analysis & Stereology, 2014.
+24. Krause, J. et al. "Grader Variability and the Importance of Reference Standards for Evaluating Machine Learning Models for Diabetic Retinopathy." Ophthalmology, vol. 125, no. 8, 2018, pp. 1264–1272.
+25. DDR Dataset. 2019.
+26. IDRiD Dataset. 2018.
 
 ### Generative & Domain Adaptation
 

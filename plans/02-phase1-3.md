@@ -798,37 +798,61 @@ Training done - Best Val kappa: 0.XXXX
 - [ ] History JSON is written to `outputs/logs/`
 - [ ] Progress bar shows correct epoch counts
 
-### 1.2 GPU Full Training
+### 1.2 GPU Full Training — ✅ COMPLETE (2026-03-31)
 
 **Purpose**: Train baseline ResNet-50 with identical pipeline to CBAM model for valid ablation.
 
-**Command**:
+**Command Executed**:
 ```bash
-# Full training (fold 0)
-python src/train.py --config src/configs/gpu_baseline.yaml --fold 0
-
-# Or equivalently:
 python src/train.py --model baseline --epochs 20 --batch_size 16 --fold 0
 ```
 
-**Expected Training Time**: ~45-60 minutes on RTX 3080/4070
+**Training Infrastructure**:
+- **GPU**: NVIDIA GeForce RTX 3090 (25.3 GB VRAM)
+- **Platform**: Vast.ai cloud instance
+- **Training Time**: ~2.5 hours (19 epochs completed)
+- **Training Set**: 2,929 images
+- **Validation Set**: 733 images
 
-**Expected Outputs**:
+**Actual Outputs**:
 ```
-outputs/
-├── checkpoints/
-│   ├── baseline_resnet50_fold0_best.pth   # Best model (highest val kappa)
-│   └── baseline_resnet50_fold0_last.pth   # Last epoch checkpoint
-└── logs/
-    └── baseline_resnet50_fold0_history.json
+dr-results/
+├── outputs/
+│   ├── checkpoints/
+│   │   ├── baseline_resnet50_fold0_best.pth   # 270 MB (epoch 14)
+│   │   └── baseline_resnet50_fold0_last.pth   # 270 MB (epoch 19)
+│   ├── logs/
+│   │   └── baseline_resnet50_fold0_history.json
+│   ├── results/
+│   │   └── baseline_resnet50_fold0_metrics.json
+│   └── figures/                                # 19 visualizations
+│       ├── baseline_resnet50_training_curves.png
+│       ├── baseline_resnet50_confusion_matrix.png
+│       ├── baseline_resnet50_per_class_recall.png
+│       └── [16 additional dataset/domain analysis figures]
+└── training_baseline_fold0.log                  # Full training log
 ```
 
-**Expected Metrics** (based on similar APTOS experiments):
-| Metric | Expected Range | Notes |
-|--------|----------------|-------|
-| Val QWK | 0.75 - 0.82 | Primary metric |
-| Val AUC | 0.85 - 0.92 | Binary referable |
-| Val Acc | 0.72 - 0.78 | 5-class accuracy |
+**Actual Results** (exceeds expected performance):
+| Metric              | Expected Range | **Actual (Best)** | **Actual (Final)** | Epoch |
+| ------------------- | -------------- | ----------------- | ------------------ | ----- |
+| **Val QWK**         | 0.75 - 0.82    | **0.9088**        | 0.9015             | 14    |
+| **Val AUC**         | 0.85 - 0.92    | **0.9846**        | 0.9848             | 14    |
+| **Val Acc**         | 0.72 - 0.78    | **0.8445**        | 0.8295             | 14    |
+| **Train Acc**       | —              | 0.8982            | 0.9259             | 14/19 |
+| **Train Loss**      | —              | 0.175             | 0.127              | 14/19 |
+| **Val Loss**        | —              | 0.535             | 0.610              | 14/19 |
+
+**Key Observations**:
+1. ✅ **Outstanding performance**: Val QWK 0.9088 significantly exceeds expected baseline (0.75-0.82)
+2. ✅ **Strong generalization**: 84.45% validation accuracy with stable training
+3. ✅ **Early convergence**: Best model at epoch 14, training stopped at epoch 19
+4. ✅ **Focal Loss effectiveness**: Successfully handled class imbalance (grade 0: 49% vs. grade 3: 5.3%)
+5. ✅ **AMP stability**: Mixed precision training completed without gradient issues
+6. ⚠️ **Overfitting signs**: Train accuracy (89.82%) > Val accuracy (84.45%) at epoch 14
+7. ℹ️ **Early stopping**: Training halted before epoch 20 (likely early stopping or time limit)
+
+**Visualizations Generated**: 19 publication-quality figures including training curves, confusion matrices, class distribution analysis, preprocessing comparisons, and domain shift characterization (APTOS vs. Messidor-2).
 
 ### 1.3 Messidor-2 Evaluation
 

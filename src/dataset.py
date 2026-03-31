@@ -132,13 +132,18 @@ class DRDataset(Dataset):
 class MessidorDataset(Dataset):
     """PyTorch Dataset for Messidor-2 fundus images (inference only).
 
-    The Messidor-2 CSV uses ``image_id`` and ``adjudicated_dr_grade``
-    columns.  Images may be ``.tif``, ``.jpg``, or ``.png`` — we try
-    all common extensions.
+    The Messidor-2 adjudicated grades CSV (Krause et al. 2018) uses
+    ``image_id`` and ``adjudicated_dr_grade`` columns.  Images may be
+    ``.tif``, ``.jpg``, or ``.png`` — we try all common extensions.
 
     If ``labels_available=False``, a dummy label of ``-1`` is returned
     (useful when running pure inference without ground truth).
     """
+
+    # Column names for the adjudicated grades CSV
+    COL_IMAGE_ID = "image_id"
+    COL_DR_GRADE = "adjudicated_dr_grade"
+    COL_GRADABLE = "adjudicated_gradable"
 
     def __init__(
         self,
@@ -150,6 +155,7 @@ class MessidorDataset(Dataset):
         labels_available: bool = True,
         use_cache: bool = False,
         cache_dir: Path | None = None,
+        filter_gradable: bool = True,
     ):
         self.df = pd.read_csv(csv_path)
         self.image_dir = Path(image_dir)
@@ -160,12 +166,74 @@ class MessidorDataset(Dataset):
         self.use_cache = use_cache
         self.cache_dir = cache_dir
 
+        # --- Detect CSV format and normalize column names ---
+        self._normalize_columns()
+
+        # --- Filter to gradable images only ---
+        if filter_gradable and self.COL_GRADABLE in self.df.columns:
+            n_before = len(self.df)
+            self.df = self.df[self.df[self.COL_GRADABLE] == 1].reset_index(drop=True)
+            n_after = len(self.df)
+            if n_before != n_after:
+                print(f"  Messidor-2: Filtered {n_before - n_after} ungradable "
+                      f"images ({n_before} -> {n_after})")
+
+        # --- Validate: check that at least some image files exist ---
+        self._validate_image_availability()
+
+    def _normalize_columns(self):
+        """Detect CSV format and normalize to standard column names.
+
+        Supports multiple CSV formats:
+        - Adjudicated format: image_id, adjudicated_dr_grade, adjudicated_gradable
+        - Legacy format: image, level (from EyePACS — should be flagged)
+        """
+        cols = set(self.df.columns)
+
+        if "image_id" in cols and "adjudicated_dr_grade" in cols:
+            # Standard adjudicated format — no changes needed
+            pass
+        elif "image" in cols and "level" in cols:
+            # Legacy EyePACS format — rename for compatibility but warn
+            print("  WARNING: CSV uses legacy 'image'/'level' column names.")
+            print("    This may be the EyePACS trainLabels.csv — verify data source!")
+            self.df = self.df.rename(columns={
+                "image": "image_id",
+                "level": "adjudicated_dr_grade",
+            })
+        else:
+            available = list(self.df.columns)
+            raise ValueError(
+                f"Messidor-2 CSV has unexpected columns: {available}. "
+                f"Expected 'image_id' + 'adjudicated_dr_grade' "
+                f"or 'image' + 'level'."
+            )
+
+    def _validate_image_availability(self, sample_n: int = 5):
+        """Check that at least some image IDs actually exist in IMAGES/."""
+        sample = self.df[self.COL_IMAGE_ID].head(sample_n).tolist()
+        found = 0
+        for img_id in sample:
+            try:
+                self._find_image_path(str(img_id))
+                found += 1
+            except FileNotFoundError:
+                pass
+        if found == 0:
+            raise RuntimeError(
+                f"No Messidor-2 images found for the first {sample_n} IDs "
+                f"in CSV. Sample IDs: {sample}. "
+                f"Image directory: {self.image_dir}. "
+                f"This likely means the CSV does not match the images — "
+                f"check that you are using the correct Messidor-2 label file."
+            )
+
     def __len__(self) -> int:
         return len(self.df)
 
     def _find_image_path(self, image_id: str) -> Path:
         """Resolve the full path — try common extensions."""
-        for ext in [".tif", ".jpg", ".png", ".jpeg", ""]:
+        for ext in [".tif", ".jpg", ".png", ".jpeg", ".JPG", ""]:
             candidate = self.image_dir / f"{image_id}{ext}"
             if candidate.exists():
                 return candidate
@@ -179,7 +247,7 @@ class MessidorDataset(Dataset):
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int, str]:
         """Returns ``(image, label, image_id)``."""
         row = self.df.iloc[idx]
-        image_id = str(row["image_id"])
+        image_id = str(row[self.COL_IMAGE_ID])
 
         cached_path = self.cache_dir / f"{image_id}.png" if self.cache_dir else None
 
@@ -197,8 +265,9 @@ class MessidorDataset(Dataset):
 
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
-        if self.labels_available and "adjudicated_dr_grade" in self.df.columns:
-            label = int(row["adjudicated_dr_grade"])
+        # Read DR grade from adjudicated column
+        if self.labels_available and self.COL_DR_GRADE in self.df.columns:
+            label = int(row[self.COL_DR_GRADE])
         else:
             label = -1
 

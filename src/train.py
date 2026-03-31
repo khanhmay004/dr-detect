@@ -29,13 +29,15 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from sklearn.metrics import cohen_kappa_score, accuracy_score, roc_auc_score
+from sklearn.metrics import (
+    cohen_kappa_score, accuracy_score, roc_auc_score, confusion_matrix,
+)
 
 from config import (
     APTOS_TRAIN_CSV, APTOS_TRAIN_IMAGES,
     EPOCHS, LEARNING_RATE, WEIGHT_DECAY, SCHEDULER_T_MAX,
-    EARLY_STOPPING_PATIENCE, CHECKPOINT_DIR, LOG_DIR,
-    BATCH_SIZE, NUM_WORKERS, IMAGE_SIZE, RANDOM_SEED,
+    EARLY_STOPPING_PATIENCE, CHECKPOINT_DIR, LOG_DIR, RESULTS_DIR,
+    BATCH_SIZE, NUM_WORKERS, IMAGE_SIZE, RANDOM_SEED, N_FOLDS,
     MC_DROPOUT_RATE, NUM_CLASSES, FOCAL_GAMMA, USE_AMP,
     GRAD_CLIP_NORM, APTOS_PROCESSED_DIR, USE_PREPROCESSED_CACHE,
     seed_everything, setup_directories,
@@ -70,6 +72,7 @@ class Trainer:
         fold: int = 0,
         model_name: str = "cbam_resnet50",
         grad_clip_norm: float = GRAD_CLIP_NORM,
+        hyperparams: dict = None,
     ):
         self.model = model.to(device)
         self.device = device
@@ -86,14 +89,26 @@ class Trainer:
         # Training state
         self.current_epoch = 0
         self.best_kappa = -1.0
+        self.best_epoch = 0
         self.epochs_no_improve = 0
         self.num_epochs = EPOCHS
+
+        # Timestamp for this training run (used in checkpoint naming)
+        from datetime import datetime
+        self.run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.run_tag = f"{model_name}_{self.run_timestamp}_fold{fold}"
+        self.start_time = None  # Set when fit() starts
+        self.end_time = None    # Set when fit() ends
+
+        # Store hyperparameters for logging
+        self.hyperparams = hyperparams or {}
 
         # Metrics history
         self.history = {
             "train_loss": [], "val_loss": [],
             "train_acc": [],  "val_acc": [],
             "val_kappa": [],  "val_auc": [],
+            "val_sens": [],   "val_spec": [],  # Binary referable DR metrics
         }
 
     # -----------------------------------------------------------------
@@ -184,16 +199,27 @@ class Trainer:
             all_labels, all_preds, weights="quadratic"
         )
 
-        # Binary referable DR AUC  (grade >= 2 vs < 2)
+        # Binary referable DR metrics (grade >= 2 vs < 2)
         all_probs = np.vstack(all_probs)
         binary_labels = (np.array(all_labels) >= 2).astype(int)
+        binary_preds = (np.array(all_preds) >= 2).astype(int)
         binary_probs = all_probs[:, 2:].sum(axis=1)
+
+        # AUC from probability scores
         try:
             epoch_auc = roc_auc_score(binary_labels, binary_probs)
         except ValueError:
             epoch_auc = 0.0
 
-        return epoch_loss, epoch_acc, epoch_kappa, epoch_auc
+        # Sensitivity & Specificity from confusion matrix
+        # [[TN, FP], [FN, TP]] for binary_labels with pos_label=1 (referable)
+        tn, fp, fn, tp = confusion_matrix(
+            binary_labels, binary_preds, labels=[0, 1]
+        ).ravel()
+        epoch_sens = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        epoch_spec = tn / (tn + fp) if (tn + fp) > 0 else 0.0
+
+        return epoch_loss, epoch_acc, epoch_kappa, epoch_auc, epoch_sens, epoch_spec
 
     # -----------------------------------------------------------------
     #  Checkpointing
@@ -208,15 +234,21 @@ class Trainer:
             "scheduler_state_dict": scheduler.state_dict(),
             "scaler_state_dict": self.scaler.state_dict(),
             "best_kappa": self.best_kappa,
+            "best_epoch": self.best_epoch,
             "history": self.history,
             "model_name": self.model_name,
+            "run_timestamp": self.run_timestamp,
+            "run_tag": self.run_tag,
+            "hyperparams": self.hyperparams,
         }
 
-        last_path = CHECKPOINT_DIR / f"{self.model_name}_fold{self.fold}_last.pth"
+        # Timestamped checkpoint naming: {model}_{timestamp}_fold{fold}_last.pth
+        last_path = CHECKPOINT_DIR / f"{self.run_tag}_last.pth"
         torch.save(checkpoint, last_path)
 
         if is_best:
-            best_path = CHECKPOINT_DIR / f"{self.model_name}_fold{self.fold}_best.pth"
+            self.best_epoch = self.current_epoch
+            best_path = CHECKPOINT_DIR / f"{self.run_tag}_best.pth"
             torch.save(checkpoint, best_path)
             print(f"  New best model saved (kappa = {self.best_kappa:.4f})")
 
@@ -245,11 +277,16 @@ class Trainer:
     def fit(self, train_loader, val_loader, criterion, optimizer, scheduler,
             num_epochs=EPOCHS):
         """Full training loop with early stopping."""
+        import time
+        from datetime import datetime
+
         self.num_epochs = num_epochs
         start_epoch = self.current_epoch
+        self.start_time = time.time()
 
         print(f"\n{'=' * 65}")
         print(f"  {self.model_name} - Fold {self.fold}")
+        print(f"  Run Tag: {self.run_tag}")
         print(f"  Epochs: {start_epoch + 1} -> {num_epochs}  |  "
               f"AMP: {self.amp_enabled}  |  "
               f"Device: {self.device}")
@@ -261,8 +298,10 @@ class Trainer:
             # Train
             t_loss, t_acc = self.train_epoch(train_loader, criterion, optimizer)
 
-            # Validate
-            v_loss, v_acc, v_kappa, v_auc = self.validate(val_loader, criterion)
+            # Validate — returns (loss, acc, kappa, auc, sens, spec)
+            v_loss, v_acc, v_kappa, v_auc, v_sens, v_spec = self.validate(
+                val_loader, criterion
+            )
 
             # LR step
             scheduler.step()
@@ -274,13 +313,16 @@ class Trainer:
             self.history["val_acc"].append(v_acc)
             self.history["val_kappa"].append(v_kappa)
             self.history["val_auc"].append(v_auc)
+            self.history["val_sens"].append(v_sens)
+            self.history["val_spec"].append(v_spec)
 
             lr = optimizer.param_groups[0]["lr"]
             print(
                 f"\n  Epoch {epoch + 1}/{num_epochs}\n"
                 f"    Train  — loss: {t_loss:.4f}  acc: {t_acc:.4f}\n"
                 f"    Val    — loss: {v_loss:.4f}  acc: {v_acc:.4f}\n"
-                f"    Val κ: {v_kappa:.4f}  AUC: {v_auc:.4f}  LR: {lr:.2e}"
+                f"    Val κ: {v_kappa:.4f}  AUC: {v_auc:.4f}  "
+                f"Sens: {v_sens:.4f}  Spec: {v_spec:.4f}  LR: {lr:.2e}"
             )
 
             # Best-model tracking
@@ -302,14 +344,82 @@ class Trainer:
         print(f"  Training done - Best Val kappa: {self.best_kappa:.4f}")
         print(f"{'=' * 65}\n")
 
+        self.end_time = time.time()
         self._save_history()
+        self._save_run_metrics()
 
     def _save_history(self):
         """Persist training curves as JSON for later plotting."""
-        path = LOG_DIR / f"{self.model_name}_fold{self.fold}_history.json"
+        path = LOG_DIR / f"{self.run_tag}_history.json"
         with open(path, "w") as f:
             json.dump(self.history, f, indent=2)
         print(f"  History saved to {path}")
+
+    def _save_run_metrics(self):
+        """Save comprehensive run metrics with hyperparameters and timing."""
+        from datetime import datetime
+        import time
+
+        # Calculate runtime
+        runtime_seconds = self.end_time - self.start_time if self.end_time else 0
+        runtime_formatted = time.strftime("%H:%M:%S", time.gmtime(runtime_seconds))
+
+        # Get best metrics from history
+        best_idx = self.best_epoch
+        metrics = {
+            "run_info": {
+                "run_tag": self.run_tag,
+                "model_name": self.model_name,
+                "fold": self.fold,
+                "timestamp": self.run_timestamp,
+                "start_time": datetime.fromtimestamp(self.start_time).isoformat() if self.start_time else None,
+                "end_time": datetime.fromtimestamp(self.end_time).isoformat() if self.end_time else None,
+                "runtime_seconds": runtime_seconds,
+                "runtime_formatted": runtime_formatted,
+            },
+            "best_metrics": {
+                "epoch": self.best_epoch + 1,
+                "val_kappa": self.best_kappa,
+                "val_acc": self.history["val_acc"][best_idx] if best_idx < len(self.history["val_acc"]) else None,
+                "val_auc": self.history["val_auc"][best_idx] if best_idx < len(self.history["val_auc"]) else None,
+                "val_sens": self.history["val_sens"][best_idx] if best_idx < len(self.history["val_sens"]) else None,
+                "val_spec": self.history["val_spec"][best_idx] if best_idx < len(self.history["val_spec"]) else None,
+                "val_loss": self.history["val_loss"][best_idx] if best_idx < len(self.history["val_loss"]) else None,
+                "train_acc": self.history["train_acc"][best_idx] if best_idx < len(self.history["train_acc"]) else None,
+                "train_loss": self.history["train_loss"][best_idx] if best_idx < len(self.history["train_loss"]) else None,
+            },
+            "final_metrics": {
+                "epoch": len(self.history["val_kappa"]),
+                "val_kappa": self.history["val_kappa"][-1] if self.history["val_kappa"] else None,
+                "val_acc": self.history["val_acc"][-1] if self.history["val_acc"] else None,
+                "val_auc": self.history["val_auc"][-1] if self.history["val_auc"] else None,
+                "val_sens": self.history["val_sens"][-1] if self.history["val_sens"] else None,
+                "val_spec": self.history["val_spec"][-1] if self.history["val_spec"] else None,
+                "val_loss": self.history["val_loss"][-1] if self.history["val_loss"] else None,
+                "train_acc": self.history["train_acc"][-1] if self.history["train_acc"] else None,
+                "train_loss": self.history["train_loss"][-1] if self.history["train_loss"] else None,
+            },
+            "hyperparameters": self.hyperparams,
+            "training_config": {
+                "epochs_requested": self.num_epochs,
+                "epochs_completed": len(self.history["val_kappa"]),
+                "early_stopped": len(self.history["val_kappa"]) < self.num_epochs,
+                "device": str(self.device),
+                "amp_enabled": self.amp_enabled,
+                "grad_clip_norm": self.grad_clip_norm,
+            },
+            "checkpoints": {
+                "best": f"{self.run_tag}_best.pth",
+                "last": f"{self.run_tag}_last.pth",
+            }
+        }
+
+        # Save to RESULTS_DIR
+        RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+        metrics_path = RESULTS_DIR / f"{self.run_tag}_metrics.json"
+        with open(metrics_path, "w") as f:
+            json.dump(metrics, f, indent=2)
+        print(f"  Metrics saved to {metrics_path}")
 
 
 # =========================================================================
@@ -416,11 +526,31 @@ def main():
     )
 
     # ---- Trainer ----
+    # Collect hyperparameters for logging
+    hyperparams = {
+        "epochs": args.epochs,
+        "batch_size": args.batch_size,
+        "learning_rate": args.lr,
+        "weight_decay": WEIGHT_DECAY,
+        "focal_gamma": FOCAL_GAMMA,
+        "image_size": IMAGE_SIZE,
+        "dropout_rate": MC_DROPOUT_RATE,
+        "grad_clip_norm": GRAD_CLIP_NORM,
+        "optimizer": "AdamW",
+        "scheduler": "CosineAnnealingLR",
+        "seed": RANDOM_SEED,
+        "n_folds": N_FOLDS,
+        "train_size": len(train_df),
+        "val_size": len(val_df),
+        "total_params": total_params,
+    }
+
     trainer = Trainer(
         model, device,
         fold=args.fold,
         model_name=model_name,
         grad_clip_norm=GRAD_CLIP_NORM,
+        hyperparams=hyperparams,
     )
 
     if args.resume:

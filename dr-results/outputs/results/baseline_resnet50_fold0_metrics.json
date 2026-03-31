@@ -1,0 +1,17 @@
+{
+  "model": "Baseline ResNet-50 (no CBAM)",
+  "best_epoch": 4,
+  "accuracy": 0.8049113233287858,
+  "quadratic_kappa": 0.8946050774697266,
+  "referable_auc": 0.9830517627092494,
+  "hyperparameters": {
+    "epochs": 5,
+    "batch_size": 4,
+    "lr": 0.0001,
+    "weight_decay": 0.0001,
+    "focal_gamma": 2.0,
+    "image_size": 512,
+    "dropout": 0.5,
+    "device": "cpu"
+  }
+}

@@ -24,8 +24,7 @@ MESSIDOR_DIR = PROJECT_ROOT / "messidor-2"
 APTOS_TRAIN_CSV = APTOS_DIR / "train.csv"
 APTOS_TRAIN_IMAGES = APTOS_DIR / "train_images"
 MESSIDOR_IMAGES = MESSIDOR_DIR / "IMAGES"
-MESSIDOR_CSV = MESSIDOR_DIR / "messidor-2.csv"
-
+MESSIDOR_CSV = MESSIDOR_DIR / "messidor_data.csv"  # Adjudicated DR grades (Krause et al. 2018)
 # Output paths
 OUTPUT_DIR = PROJECT_ROOT / "outputs"
 FIGURES_DIR = OUTPUT_DIR / "figures"
