@@ -8,6 +8,7 @@ env/
 aptos/
 messidor-2/
 data/
+dr-results/
 *.csv
 *.zip
 *.tar.gz
