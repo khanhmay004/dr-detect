@@ -3,6 +3,9 @@ dr-env/
 venv/
 env/
 .env
+.agent/
+docs/
+vast/
 
 # Datasets & Data
 aptos/
