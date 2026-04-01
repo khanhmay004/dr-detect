@@ -1,7 +1,9 @@
 # Implementation Plan: Grad-CAM / Attention Map Interpretability for Clinical Trust
 
-> **Document Version**: 1.0  
-> **Created**: 2026-03-31  
+> **Document Version**: 1.1
+> **Created**: 2026-03-31
+> **Updated**: 2026-04-01
+> **Status**: ✅ IMPLEMENTED
 > **Scope**: Add Grad-CAM-based visual interpretability for baseline and CBAM models, integrated with current Phase 2/3 pipeline.
 
 ---
@@ -85,10 +87,10 @@ No deep subfolders; reuse existing config/model/dataset modules.
 
 ## Phase I — Core Grad-CAM engine
 
-- [ ] Add `src/interpretability.py`
-- [ ] Implement forward/backward hook manager
-- [ ] Implement Grad-CAM heatmap computation
-- [ ] Implement overlay rendering helper
+- [x] Add `src/interpretability.py`
+- [x] Implement forward/backward hook manager
+- [x] Implement Grad-CAM heatmap computation
+- [x] Implement overlay rendering helper
 
 ### Reference implementation snippet
 
@@ -145,9 +147,9 @@ class GradCAM:
 
 ## Phase II — Visualization and export
 
-- [ ] Add helper to convert normalized tensor back to RGB view
-- [ ] Add colormap overlay utility
-- [ ] Add multi-panel figure export:
+- [x] Add helper to convert normalized tensor back to RGB view
+- [x] Add colormap overlay utility
+- [x] Add multi-panel figure export:
   - original image
   - heatmap
   - overlay
@@ -171,10 +173,10 @@ def overlay_cam_on_rgb(
 
 ## Phase III — CLI integration (`run_gradcam.py`)
 
-- [ ] Build CLI for model/checkpoint/dataset selection
-- [ ] Support baseline and CBAM with shared interface
-- [ ] Support deterministic Grad-CAM generation
-- [ ] Support selecting:
+- [x] Build CLI for model/checkpoint/dataset selection
+- [x] Support baseline and CBAM with shared interface
+- [x] Support deterministic Grad-CAM generation
+- [x] Support selecting:
   - fixed image IDs
   - top-N high entropy samples
   - random stratified samples by grade
@@ -198,8 +200,8 @@ parser.add_argument("--output_dir", type=str, default="outputs/figures/gradcam")
 
 ## Phase IV — Sample selection policy
 
-- [ ] Reuse `evaluate.py` uncertainty CSV outputs to pick meaningful cases
-- [ ] Create four mandatory analysis buckets:
+- [x] Reuse `evaluate.py` uncertainty CSV outputs to pick meaningful cases
+- [x] Create four mandatory analysis buckets:
   1. Correct + low entropy
   2. Correct + high entropy
   3. Incorrect + high entropy
@@ -230,9 +232,9 @@ def select_case_ids(uncertainty_df: pd.DataFrame, n_per_bucket: int = 5) -> dict
 
 ## Phase V — Thesis-ready outputs
 
-- [ ] Export figure panels per case
-- [ ] Export summary markdown/CSV with interpretability observations
-- [ ] Add side-by-side baseline vs CBAM overlays for identical image IDs
+- [x] Export figure panels per case
+- [x] Export summary markdown/CSV with interpretability observations
+- [x] Add side-by-side baseline vs CBAM overlays for identical image IDs
 
 Expected outputs:
 
@@ -261,11 +263,11 @@ Include these categories in `gradcam_case_summary.csv`.
 
 ## 6) Validation checks
 
-- [ ] Determinism check: same image + same class produces same map across 2 runs.
-- [ ] Layer check: `layer4` and `layer3` maps are generated without hook failure.
-- [ ] Range check: CAM min/max in [0, 1].
-- [ ] Shape check: upsampled CAM matches image resolution (512x512).
-- [ ] Output check: required files written to `outputs/figures/gradcam/`.
+- [x] Determinism check: same image + same class produces same map across 2 runs.
+- [x] Layer check: `layer4` and `layer3` maps are generated without hook failure.
+- [x] Range check: CAM min/max in [0, 1].
+- [x] Shape check: upsampled CAM matches image resolution (512x512).
+- [x] Output check: required files written to `outputs/figures/gradcam/`.
 
 ---
 
@@ -286,36 +288,36 @@ Include these categories in `gradcam_case_summary.csv`.
 
 ## Phase A — Core module
 
-- [ ] Create `src/interpretability.py`
-- [ ] Implement `GradCAM` class with hooks
-- [ ] Implement CAM normalization and upsampling
-- [ ] Add docstrings + type hints
+- [x] Create `src/interpretability.py`
+- [x] Implement `GradCAM` class with hooks
+- [x] Implement CAM normalization and upsampling
+- [x] Add docstrings + type hints
 
 ## Phase B — Rendering utilities
 
-- [ ] Implement RGB de-normalization helper
-- [ ] Implement heatmap overlay helper
-- [ ] Implement panel plot function
+- [x] Implement RGB de-normalization helper
+- [x] Implement heatmap overlay helper
+- [x] Implement panel plot function
 
 ## Phase C — Runner script
 
-- [ ] Create `src/run_gradcam.py`
-- [ ] Add checkpoint wildcard resolution (reuse `evaluate.py` pattern)
-- [ ] Add dataset/model/layer CLI arguments
-- [ ] Add save-path controls
+- [x] Create `src/run_gradcam.py`
+- [x] Add checkpoint wildcard resolution (reuse `evaluate.py` pattern)
+- [x] Add dataset/model/layer CLI arguments
+- [x] Add save-path controls
 
 ## Phase D — Case selection and analysis
 
-- [ ] Parse uncertainty CSV from `outputs/results/`
-- [ ] Implement bucketed case selection
-- [ ] Generate maps for baseline + CBAM on same IDs
-- [ ] Export case summary CSV
+- [x] Parse uncertainty CSV from `outputs/results/`
+- [x] Implement bucketed case selection
+- [x] Generate maps for baseline + CBAM on same IDs
+- [x] Export case summary CSV
 
 ## Phase E — Thesis integration
 
-- [ ] Add command examples to deployment docs
-- [ ] Add results interpretation template
-- [ ] Add figure naming convention for Chapter 4/5
+- [x] Add command examples to deployment docs
+- [x] Add results interpretation template
+- [x] Add figure naming convention for Chapter 4/5
 
 ---
 
