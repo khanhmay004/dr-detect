@@ -1099,27 +1099,27 @@ Setting all flags to their defaults produces the **exact same pipeline** as the 
 
 ## 10. Detailed TODO List
 
-### Phase A — Post-Hoc Fixes (No Retraining)
+### Phase A — Post-Hoc Fixes (No Retraining) — ✅ COMPLETE (2026-04-03)
 
-- [ ] **A1**: Create `src/temperature_scaling.py`
-  - [ ] A1.1: Implement `collect_val_logits()` — deterministic forward pass collecting raw logits
-  - [ ] A1.2: Implement `fit_temperature()` — LBFGS optimisation of temperature scalar
-  - [ ] A1.3: Implement `main()` — CLI entry point (checkpoint, model, fold args)
-  - [ ] A1.4: Output JSON with `temperature`, `ece_before`, `ece_after`, `brier_before`, `brier_after`
-  - [ ] A1.5: Output before/after reliability diagram overlay figure
+- [x] **A1**: Create `src/temperature_scaling.py`
+  - [x] A1.1: Implement `collect_val_logits()` — deterministic forward pass collecting raw logits
+  - [x] A1.2: Implement `fit_temperature()` — LBFGS optimisation of temperature scalar
+  - [x] A1.3: Implement `main()` — CLI entry point (checkpoint, model, fold args)
+  - [x] A1.4: Output JSON with `temperature`, `ece_before`, `ece_after`, `brier_before`, `brier_after`
+  - [x] A1.5: Output before/after reliability diagram overlay figure
   - [ ] A1.6: CPU test — run on existing baseline fold 0 checkpoint
 
-- [ ] **A2**: Create `src/threshold_tuning.py`
-  - [ ] A2.1: Implement `tune_thresholds()` — Nelder-Mead optimisation in log-space
-  - [ ] A2.2: Implement `main()` — CLI entry point; runs MC Dropout inference on APTOS val, then tunes
-  - [ ] A2.3: Output JSON with `thresholds`, `metric_before`, `metric_after`, `per_class_recall_before`, `per_class_recall_after`
-  - [ ] A2.4: Output per-class comparison table (printed to console and saved)
+- [x] **A2**: Create `src/threshold_tuning.py`
+  - [x] A2.1: Implement `tune_thresholds()` — Nelder-Mead optimisation in log-space
+  - [x] A2.2: Implement `main()` — CLI entry point; runs MC Dropout inference on APTOS val, then tunes
+  - [x] A2.3: Output JSON with `thresholds`, `metric_before`, `metric_after`, `per_class_recall_before`, `per_class_recall_after`
+  - [x] A2.4: Output per-class comparison table (printed to console and saved)
   - [ ] A2.5: CPU test — run on existing baseline fold 0 checkpoint
   - [ ] A2.6: Apply tuned thresholds to Messidor-2 results CSV and report improvement
 
-- [ ] **A3**: Integrate thresholds into `evaluate.py`
-  - [ ] A3.1: Add `--thresholds` CLI argument (comma-separated 5 floats or path to JSON)
-  - [ ] A3.2: Apply threshold adjustment in `mc_dropout_inference` return dict
+- [x] **A3**: Integrate thresholds into `evaluate.py`
+  - [x] A3.1: Add `--thresholds` CLI argument (comma-separated 5 floats or path to JSON)
+  - [x] A3.2: Apply threshold adjustment in `mc_dropout_inference` return dict
   - [ ] A3.3: Test backward compatibility (no `--thresholds` = unchanged behaviour)
 
 ### Phase B — Structural Pipeline Changes

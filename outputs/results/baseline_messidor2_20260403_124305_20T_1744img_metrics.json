@@ -1,0 +1,68 @@
+{
+  "run_info": {
+    "model": "baseline",
+    "checkpoint": "baseline_resnet50_20260403_120248_fold0_best.pth",
+    "checkpoint_epoch": 14,
+    "checkpoint_best_kappa": 0.9153098276242764,
+    "dataset": "messidor2",
+    "n_images": 1744,
+    "mc_passes": 20,
+    "batch_size": 16,
+    "image_size": 512,
+    "device": "cuda",
+    "timestamp": "2026-04-03T12:43:41.170781"
+  },
+  "accuracy": 0.6278669724770642,
+  "quadratic_kappa": 0.6233243805596027,
+  "binary_referable_auc": 0.8629656266417755,
+  "binary_referable_sens": 0.43982494529540483,
+  "binary_referable_spec": 0.9743589743589743,
+  "classification_report": {
+    "No DR": {
+      "precision": 0.7246596066565809,
+      "recall": 0.9419862340216323,
+      "f1-score": 0.8191534843950407,
+      "support": 1017.0
+    },
+    "Mild": {
+      "precision": 0.13297872340425532,
+      "recall": 0.09259259259259259,
+      "f1-score": 0.1091703056768559,
+      "support": 270.0
+    },
+    "Moderate": {
+      "precision": 0.5957446808510638,
+      "recall": 0.16138328530259366,
+      "f1-score": 0.25396825396825395,
+      "support": 347.0
+    },
+    "Severe": {
+      "precision": 0.4,
+      "recall": 0.56,
+      "f1-score": 0.4666666666666667,
+      "support": 75.0
+    },
+    "Proliferative DR": {
+      "precision": 0.4,
+      "recall": 0.4,
+      "f1-score": 0.4,
+      "support": 35.0
+    },
+    "accuracy": 0.6278669724770642,
+    "macro avg": {
+      "precision": 0.4506766021823799,
+      "recall": 0.43119242238336375,
+      "f1-score": 0.40979174214136344,
+      "support": 1744.0
+    },
+    "weighted avg": {
+      "precision": 0.5869303208395704,
+      "recall": 0.6278669724770642,
+      "f1-score": 0.5732121905329653,
+      "support": 1744.0
+    }
+  },
+  "ece": 0.11545836744368622,
+  "brier_score": 0.5231333374977112,
+  "ece_bins": 15
+}

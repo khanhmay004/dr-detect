@@ -415,6 +415,10 @@ def main():
                         help="Limit dataset to N images (for smoke testing)")
     parser.add_argument("--ece_bins", type=int, default=15,
                         help="Number of confidence bins for ECE/reliability")
+    parser.add_argument(
+        "--thresholds", type=str, default=None,
+        help="Per-class thresholds: comma-separated 5 floats or path to JSON",
+    )
     args = parser.parse_args()
 
     # ---- Resolve checkpoint path (support wildcards) ----
@@ -431,7 +435,23 @@ def main():
     # Update args with resolved path
     args.checkpoint = checkpoint_path
 
-
+    # ---- Parse thresholds if provided ----
+    thresholds: np.ndarray | None = None
+    if args.thresholds is not None:
+        if args.thresholds.endswith(".json"):
+            with open(args.thresholds, "r") as f:
+                threshold_data = json.load(f)
+            thresholds = np.array(threshold_data["thresholds"], dtype=np.float32)
+        else:
+            thresholds = np.array(
+                [float(x.strip()) for x in args.thresholds.split(",")],
+                dtype=np.float32,
+            )
+        if len(thresholds) != NUM_CLASSES:
+            raise ValueError(
+                f"Expected {NUM_CLASSES} thresholds, got {len(thresholds)}"
+            )
+        print(f"Using thresholds: {thresholds}")
 
     # ---- Setup ----
     seed_everything(RANDOM_SEED)
@@ -529,6 +549,18 @@ def main():
         model, dataloader, device, n_passes=args.mc_passes,
     )
 
+    # ---- Apply thresholds if provided ----
+    if thresholds is not None:
+        mean_probs_tensor = torch.from_numpy(results["mean_probs"])
+        adjusted = mean_probs_tensor / torch.from_numpy(thresholds)
+        new_predictions = adjusted.argmax(dim=1).numpy()
+        new_confidence = mean_probs_tensor.gather(
+            1, torch.from_numpy(new_predictions).unsqueeze(1)
+        ).squeeze(1).numpy()
+        results["predictions"] = new_predictions
+        results["confidence"] = new_confidence
+        print(f"  Applied threshold adjustment to predictions")
+
     # ---- Results ----
     csv_path = RESULTS_DIR / f"{run_tag}_uncertainty.csv"
     save_results_csv(results, csv_path)
@@ -577,6 +609,7 @@ def main():
                 "image_size": IMAGE_SIZE,
                 "device": str(device),
                 "timestamp": datetime.now().isoformat(),
+                "thresholds": thresholds.tolist() if thresholds is not None else None,
             },
         }
         for k, v in metrics.items():
