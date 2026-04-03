@@ -46,28 +46,27 @@ def mc_dropout_inference(
     n_passes: int = MC_INFERENCE_PASSES,
 ) -> dict:
 
-    # model.eval() → BatchNorm uses running stats; MCDropout stays active
+    # model.eval() → BatchNorm uses running stats mcdropout active
     model.eval()
 
     amp_enabled = USE_AMP and device.type == "cuda"
 
     all_image_ids = []
     all_labels = []
-    all_stacked = []  # will collect (B, T, C) tensors
+    all_stacked = [] 
 
     pbar = tqdm(dataloader, desc=f"MC Inference (T={n_passes})")
     for images, labels, image_ids in pbar:
         images = images.to(device, non_blocking=True)
         batch_size = images.size(0)
 
-        # --- T stochastic forward passes ---
+        # t stochastic forward passes-> collect probabilities
         pass_probs = []
         for _ in range(n_passes):
             with torch.amp.autocast(
                 device_type=device.type, enabled=amp_enabled
             ):
                 logits = model(images)
-            # Softmax in float32 for numerical stability
             probs = F.softmax(logits.float(), dim=1)  # (B, C)
             pass_probs.append(probs.cpu())
 
@@ -82,14 +81,13 @@ def mc_dropout_inference(
     all_stacked = torch.cat(all_stacked, dim=0)  # (N, T, C)
     N = all_stacked.size(0)
 
-    # --- Predictive mean ---
+    # Predictive mean 
     mean_probs = all_stacked.mean(dim=1)  # (N, C)
 
-    # --- Predictive entropy  H = −Σ p̄_c · log(p̄_c) ---
-    # Clamp to avoid log(0)
+    # Predictive entropy 
     entropy = -(mean_probs * torch.log(mean_probs.clamp(min=1e-10))).sum(dim=1)
 
-    # --- Summary statistics ---
+    # Summary statistics 
     confidence, predictions = mean_probs.max(dim=1)
 
     return {
@@ -99,18 +97,19 @@ def mc_dropout_inference(
         "entropy": entropy.numpy(),
         "predictions": predictions.numpy(),
         "confidence": confidence.numpy(),
-        "all_probs": all_stacked.numpy(),  # (N, T, C) — for deeper analysis
+        "all_probs": all_stacked.numpy(),  # (N, T, C) 
     }
 
 
 # =========================================================================
 #  Metrics
+
+#ECE = Expected Calibration Error
 def compute_ece(
     mean_probs: np.ndarray,
     labels: np.ndarray,
     n_bins: int = 15,
 ) -> float:
-    """Compute Expected Calibration Error (ECE)."""
     confidences = mean_probs.max(axis=1)
     predictions = mean_probs.argmax(axis=1)
     accuracies = (predictions == labels).astype(float)
@@ -151,7 +150,7 @@ def compute_metrics(labels: np.ndarray, predictions: np.ndarray, mean_probs: np.
 
     report = classification_report(
         labels, predictions,
-        labels=list(DR_GRADES.keys()),  # Explicitly specify all 5 classes
+        labels=list(DR_GRADES.keys()),  
         target_names=list(DR_GRADES.values()),
         output_dict=True, zero_division=0,
     )
@@ -185,9 +184,9 @@ def compute_metrics(labels: np.ndarray, predictions: np.ndarray, mean_probs: np.
     }
 
 
-# =========================================================================
+
+
 #  Visualization
-# =========================================================================
 
 def plot_reliability_diagram(
     mean_probs: np.ndarray,
@@ -195,7 +194,6 @@ def plot_reliability_diagram(
     n_bins: int = 15,
     save_path: Path | None = None,
 ):
-    """Reliability diagram for confidence calibration."""
     confidences = mean_probs.max(axis=1)
     predictions = mean_probs.argmax(axis=1)
     accuracies = (predictions == labels).astype(float)
@@ -235,7 +233,6 @@ def compute_referral_curve(
     referable_threshold: int = 2,
     quantiles: list[float] | None = None,
 ) -> pd.DataFrame:
-    """Compute coverage-performance tradeoff across entropy thresholds."""
     if quantiles is None:
         quantiles = [0.50, 0.60, 0.70, 0.80, 0.90, 0.95]
 
@@ -277,7 +274,6 @@ def compute_referral_curve(
 
 
 def plot_referral_curve(referral_df: pd.DataFrame, save_path: Path | None = None):
-    """Plot coverage vs accuracy/sensitivity/specificity."""
     fig, ax = plt.subplots(figsize=(10, 6))
 
     ax.plot(
@@ -316,7 +312,6 @@ def plot_referral_curve(referral_df: pd.DataFrame, save_path: Path | None = None
     plt.close(fig)
 
 def plot_uncertainty_histogram(entropy, predictions, save_path=None):
-    """Histogram of predictive entropy, colored by predicted DR grade."""
     fig, ax = plt.subplots(figsize=(10, 6))
 
     for grade, name in DR_GRADES.items():
@@ -366,12 +361,8 @@ def plot_confidence_vs_entropy(confidence, entropy, predictions, save_path=None)
     plt.close(fig)
 
 
-# =========================================================================
-#  Save per-image results
-# =========================================================================
 
 def save_results_csv(results: dict, save_path: Path):
-    """Write one row per image with predictions and uncertainty."""
     rows = []
     for i, img_id in enumerate(results["image_ids"]):
         row = {
@@ -392,9 +383,10 @@ def save_results_csv(results: dict, save_path: Path):
     return df
 
 
-# =========================================================================
-#  Entry point
-# =========================================================================
+
+
+
+#########################################################################
 
 def main():
     parser = argparse.ArgumentParser(
@@ -438,6 +430,8 @@ def main():
 
     # Update args with resolved path
     args.checkpoint = checkpoint_path
+
+
 
     # ---- Setup ----
     seed_everything(RANDOM_SEED)
@@ -488,7 +482,6 @@ def main():
             labels_available=not args.no_labels,
         )
 
-    # Truncate for smoke testing
     if args.max_images and args.max_images < len(dataset):
         dataset.df = dataset.df.head(args.max_images).reset_index(drop=True)
         print(f"  [SMOKE TEST] Truncated to {len(dataset)} images")
@@ -504,7 +497,6 @@ def main():
     if dataset_name == "messidor2" and hasattr(dataset, 'COL_GRADABLE') and dataset.COL_GRADABLE in dataset.df.columns:
         print(f"  (filtered to gradable images only)")
 
-    # ---- Build run tag for output file naming ----
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     n_images = len(dataset)
     run_tag = f"{args.model}_{dataset_name}_{timestamp}_{args.mc_passes}T_{n_images}img"
@@ -634,7 +626,7 @@ def main():
     print(f"\n  [!] {n_high} images ({100 * n_high / len(results['entropy']):.1f}%) "
           f"above 90th-percentile entropy — consider manual review.")
 
-    print("\n[OK] Evaluation complete!")
+    print("\nEvaluation complete!")
 
 
 if __name__ == "__main__":
