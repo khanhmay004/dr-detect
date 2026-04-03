@@ -503,6 +503,14 @@ src/
 │   ├── gpu_baseline.yaml
 │   └── gpu_cbam.yaml
 └── tests/                      # Unit tests for model and determinism
+
+docs/
+├── research-project.md         # This file — single source of truth
+├── result-report.md            # All experiment results through Phase 3D
+└── improve-model.md            # Per-class failure root-cause analysis (Phase 3E)
+
+plans/
+└── 07-improve-model.md         # Detailed implementation plan with code snippets (Phase 3E)
 ```
 
 ### 11.2. Completed Work (Phase 0 + Phase 1)
@@ -552,17 +560,22 @@ src/
 | Messidor-2 full evaluation (CBAM, T=20)        | ✅ Complete | 1,744 gradable images |
 | Phase-2 artifact consolidation (`phase2-results`) | ✅ Complete | Logs, checkpoints, figures, metrics archived |
 
-### 11.4. Pending Work (Post-Phase 3D)
+### 11.4. Pending Work (Post-Phase 3E)
 
 | Task                                           | Status             | Priority | Dependencies |
 | ---------------------------------------------- | ------------------ | -------- | ------------ |
 | ECE + Brier + reliability diagram in `evaluate.py` | ✅ Implemented | Complete | Phase 3A/3B complete |
 | Referral threshold analysis (coverage-risk)    | ✅ Implemented | Complete | Phase 3C complete |
 | Full Messidor re-evaluation with calibration outputs (baseline + CBAM) | ✅ Complete | Complete | Phase 3D complete |
-| CBAM folds 1-4 training                        | ⏸ Deferred (redesign-first) | High     | New CBAM design |
+| Per-class failure root-cause analysis          | ✅ Complete | Complete | Phase 3E — `docs/improve-model.md` |
+| Improvement implementation plan                | ✅ Complete | Complete | Phase 3E — `plans/07-improve-model.md` |
+| Post-hoc fixes (temperature scaling, threshold tuning) | ⬜ Not started | **Critical** | Plan Phase A — no retraining |
+| Balanced sampler + label smoothing + deeper head | ⬜ Not started | **Critical** | Plan Phase B — retrain fold 0 |
+| Ordinal soft-label loss (optional)             | ⬜ Not started | Medium | Plan Phase C — retrain fold 0 |
+| CBAM folds 1-4 training                        | ⏸ Deferred (redesign-first) | High     | Post-improvement retrain |
 | Cross-fold stats for CBAM (mean ± std)         | ⏸ Deferred (redesign-first) | High     | CBAM folds 1-4 |
 | 4-model ablation table (A–D)                   | ⏸ Deferred to post-redesign | High     | Updated model variants |
-| Publication-quality final figures              | ⬜ Not started     | Medium   | Phase 3 results complete |
+| Publication-quality final figures              | ⬜ Not started     | Medium   | Core experiments complete |
 | Thesis writing integration                     | ⬜ Not started     | High     | Core experiments complete |
 
 **Phase 2 Outcome Summary (locked for reporting):**
@@ -573,7 +586,7 @@ src/
    - Baseline: Acc **0.6399**, QWK **0.6000**, Ref-AUC **0.8911**, Sens **0.4464**, Spec **0.9767**
    - CBAM: Acc **0.6095**, QWK **0.5777**, Ref-AUC **0.8778**, Sens **0.3720**, Spec **0.9736**
 3. **Interpretation**: Baseline currently outperforms CBAM on both internal fold-0 and external validation.
-4. **Next step**: baseline threshold policy + calibration post-processing, then CBAM redesign.
+4. **Next step**: Implement improvement plan (Phase A → B → C) to fix per-class recall collapse before continuing fold training.
 
 ### 11.5. Phase 3D Results (✅ Complete — 2026-03-31)
 
@@ -600,6 +613,44 @@ Artifacts generated:
 - `*_metrics.json` with ECE/Brier
 - `*_reliability.png`
 - `*_referral_curve.csv` and referral curve figures
+
+### 11.6. Phase 3E — Improvement Analysis & Planning (✅ Complete — 2026-04-03)
+
+Phase 3E focused on diagnosing why both models near-catastrophically fail on minority DR grades (1–4) and producing an actionable improvement plan.
+
+**Root-Cause Analysis** (`docs/improve-model.md`):
+
+Identified 5 structural root causes for Grade 1–4 recall collapse:
+
+| Root Cause | Description |
+| --- | --- |
+| No balanced sampling | `DataLoader` uses `shuffle=True` without `WeightedRandomSampler`; Grade 3 gets ~0.8 samples/batch |
+| Focal Loss alpha alone insufficient | Alpha reweights gradients but does not change the input distribution |
+| Grade 1 inherently ambiguous | Microaneurysm-only, single-grader APTOS noise, low inter-rater agreement |
+| Ordinal structure ignored | Predicting Grade 0 for a Grade 4 image penalised identically to predicting Grade 3 |
+| Domain shift amplification | Weaknesses on minority classes compound when distribution shifts (APTOS → Messidor-2) |
+
+**Per-Class Recall Snapshot (Messidor-2, Phase 3D)**:
+
+| Grade | Baseline Recall | CBAM Recall | Support |
+| ---: | ---: | ---: | ---: |
+| 0 | 86.5% | 83.3% | 1,016 |
+| 1 | 4.8% | 4.8% | 270 |
+| 2 | 23.6% | 18.1% | 347 |
+| 3 | 31.1% | 26.2% | 61 |
+| 4 | 56.0% | 52.0% | 50 |
+
+**Implementation Plan** (`plans/07-improve-model.md`):
+
+Three-phase improvement roadmap:
+
+| Phase | Scope | Retraining? | Key Changes |
+| --- | --- | --- | --- |
+| A (Post-hoc) | Temperature scaling + threshold tuning | No | 2 new scripts + evaluate.py tweak |
+| B (Structural) | Balanced sampler + label smoothing + LR warmup + deeper head | Yes (fold 0) | 8 modified files + 1 new YAML |
+| C (Optional) | Ordinal soft-label loss | Yes | loss.py + 1 new YAML |
+
+All improvements designed as backward-compatible config flags (defaults preserve current behaviour). See `plans/07-improve-model.md` for full code snippets and 40+ granular TODO items.
 
 ---
 
@@ -733,11 +784,17 @@ No DR paper derives a specific entropy threshold for "refer to human grader" dec
 
 No paper ablates CBAM on/off across APTOS → Messidor-2. The project design directly addresses this with baseline ResNet-50 vs. CBAM-ResNet50 evaluated on both datasets.
 
-### Gap 4 — Ordinal Loss Functions (Potential Future Work)
+### Gap 4 — Ordinal Loss Functions (Planned — Phase C)
 
-**Impact**: HIGH | **Effort**: MEDIUM
+**Impact**: HIGH | **Effort**: MEDIUM | **Status**: Implementation plan written (`plans/07-improve-model.md`)
 
-No reviewed paper applies ordinal regression losses (ordinal CE, CORN) to CBAM-CNN on APTOS/Messidor-2. Standard Focal Loss treats DR grades as independent classes, ignoring that grade 3 is closer to grade 4 than to grade 0.
+No reviewed paper applies ordinal regression losses (ordinal CE, CORN) to CBAM-CNN on APTOS/Messidor-2. Standard Focal Loss treats DR grades as independent classes, ignoring that grade 3 is closer to grade 4 than to grade 0. Gaussian soft-label approach designed — see Phase C of improvement plan.
+
+### Gap 5 — Balanced Sampling + Label Smoothing for DR Minority Classes (Planned — Phase B)
+
+**Impact**: HIGH | **Effort**: MEDIUM | **Status**: Implementation plan written (`plans/07-improve-model.md`)
+
+Most DR papers report only aggregate metrics (accuracy, QWK) and do not address the class-imbalance problem structurally. This project will combine `WeightedRandomSampler`, label smoothing (ε=0.1), and a deeper classifier head to directly target the Grade 1–4 recall collapse identified in Phase 3E.
 
 ---
 
@@ -751,8 +808,12 @@ No reviewed paper applies ordinal regression losses (ordinal CE, CORN) to CBAM-C
 | FM2 | Weak Bayesian approximation (single-layer MC Dropout) | HIGH       | Inference (no T1 evidence)     | Report ECE honestly; propose backbone-level dropout as fix      |
 | FM3 | CBAM spatial attention too coarse at deep layers      | LOW-MEDIUM | Inference (IDRiD lesion sizes) | Acknowledge in Discussion; multi-scale CBAM mitigates partially |
 | FM4 | Alpha weights computed per-fold vs. globally          | LOW        | Code inspection                | ✅ Already correct — alpha computed from training fold          |
+| FM5 | Grade 1–4 recall collapse (minority-class failure)    | **HIGH**   | Phase 3D per-class recall      | Balanced sampler + label smoothing + ordinal loss (Plan Phase B/C) |
+| FM6 | Single Linear(2048→5) head — no learned nonlinearity  | MEDIUM     | Architecture inspection        | Deeper classifier head with ReLU + Dropout (Plan Phase B5)     |
 
 **FM2 Detail**: MC Dropout at p=0.5 on the final Linear(2048→5) layer only masks 1,024/2,048 features per pass, but all features are identically extracted by the deterministic backbone. This produces narrow uncertainty estimates that may be poorly calibrated.
+
+**FM5 Detail**: Grade 1 recall is 4.8% on Messidor-2 (both models). The model predicts Grade 0 for 95% of Grade 1 images. Root cause is structural: no balanced sampling + Focal Loss alpha weights alone cannot overcome 49:1 class imbalance ratio (Grade 0 vs Grade 3). See `docs/improve-model.md` for full diagnosis.
 
 ### 14.2. Project Risk Assessment
 
@@ -765,6 +826,9 @@ No reviewed paper applies ordinal regression losses (ordinal CE, CORN) to CBAM-C
 | Time runs out before all 5 folds            | High        | Low          | 1 fold + external validation sufficient for bachelor's         | Mitigated       |
 | Focal Loss overfits to label noise          | Low         | Medium       | Monitor per-class loss; label smoothing ablation               | Monitored       |
 | Baseline performance too strong             | **New**     | Medium       | May reduce CBAM's relative improvement; still valid comparison | Emerging risk   |
+| Per-class recall collapse (Grades 1–4)      | **Confirmed**| **High**    | Balanced sampler + label smoothing + ordinal loss (Plan B/C)   | **Active — plan written** |
+
+**Risk Update (2026-04-03)**: Per-class analysis (Phase 3E) confirmed near-catastrophic failure on minority grades: Grade 1 recall 4.8%, Grade 2 recall 23.6% on Messidor-2. Root cause is structural (no balanced sampling, single linear head, ordinal structure ignored) — not a hyperparameter tuning problem. Three-phase improvement plan written (`plans/07-improve-model.md`). Phase A (post-hoc) carries zero regression risk; Phase B (structural retrain) is the critical path.
 
 **Risk Update (2026-03-31)**: Baseline ResNet-50 achieved QWK 0.9088, significantly exceeding expected range (0.75-0.82). This raises the bar for CBAM-ResNet50 to demonstrate improvement. If CBAM shows minimal gains, the thesis can reframe as "validating strong baseline performance" rather than "improving via attention mechanisms."
 
@@ -810,17 +874,44 @@ Fixed MCDropout deterministic validation, gradient clipping, progress bar, basel
 - CBAM folds 1–4 for robust cross-fold estimate
 - Calibration and referral analysis
 
-### Phase 3: Evaluation & Uncertainty Analysis — ✅ PHASE 3A–3D COMPLETE
+### Phase 3: Evaluation & Uncertainty Analysis — ✅ PHASE 3A–3E COMPLETE
 
 - ✅ Added ECE + Brier score + reliability diagram to `evaluate.py`
 - ✅ Implemented referral-threshold workflow (coverage vs accuracy/sensitivity/specificity)
 - ✅ Completed full Messidor-2 reruns for baseline and CBAM with calibrated outputs
 - ✅ Generated uncertainty artifacts for reporting
-- ⏭ Next: threshold/referral operating-point selection + temperature scaling
+- ✅ Diagnosed per-class failure on Grades 1–4 → `docs/improve-model.md`
+- ✅ Wrote detailed improvement plan with code snippets → `plans/07-improve-model.md`
+- ⏭ Next: implement improvement plan (Phase A → B → C)
 
-### Phase 4: Ablation Study (Days 9–10)
+### Phase 3F: Model Improvement Implementation (Planned)
 
-- Train 4 model variants (A–D) on fold 0
+Three-phase improvement roadmap per `plans/07-improve-model.md`:
+
+**Phase A — Post-Hoc Fixes (no retraining)**:
+- Temperature scaling on existing logits (create `src/temperature_scaling.py`)
+- Per-class threshold tuning (create `src/threshold_tuning.py`)
+- Integrate thresholds into `evaluate.py`
+
+**Phase B — Structural Improvements (retrain fold 0)**:
+- Add 5 new config constants (`config.py`)
+- Label smoothing in `FocalLoss` (`loss.py`)
+- Balanced `WeightedRandomSampler` (`dataset.py`)
+- LR warmup scheduler (`train.py`)
+- Deeper classifier head with hidden layer (`model.py`)
+- New experiment config (`experiment_config.py` + YAML)
+- Wire all improvements into training loop
+- CPU smoke tests → GPU training fold 0
+
+**Phase C — Ordinal Soft Labels (optional, retrain fold 0)**:
+- Gaussian soft-label generator in `loss.py`
+- KL-divergence ordinal loss variant
+
+### Phase 4: Ablation Study (Post-Improvement)
+
+- Retrain improved baseline + improved CBAM (fold 0)
+- Compare pre-improvement vs post-improvement per-class recall
+- Train 4 model variants (A–D) on fold 0 if time permits
 - Evaluate all on APTOS val + Messidor-2
 - Fill ablation table
 
@@ -907,15 +998,16 @@ Fixed MCDropout deterministic validation, gradient clipping, progress bar, basel
 
 ## 18. Future Work
 
-1. **Ordinal loss functions** (CORN / ordinal CE) — respects grade ordering, may improve QWK.
+1. **Ordinal loss functions** (CORN / ordinal CE) — respects grade ordering, may improve QWK. _(Phase C of improvement plan — ready to implement)_
 2. **Backbone-level MC Dropout** (p=0.1 before avg-pool) — broader uncertainty estimates.
 3. **Grad-CAM / attention map visualization** — interpretability and clinical trust.
 4. **Multi-task learning** — simultaneous grading + lesion segmentation (addresses Alyoubi 6% gap).
 5. **Foundation model fine-tuning** (RETFound) — label-efficient, stronger baseline.
 6. **Progression prediction** (DeepDR Plus approach) — time-to-event, personalized screening intervals.
 7. **Federated learning** — privacy-preserving multi-centre training.
-8. **Label smoothing** — mitigate APTOS label noise.
-9. **Temperature scaling** — post-hoc calibration improvement.
+8. **Label smoothing** — mitigate APTOS label noise. _(Phase B of improvement plan — ready to implement)_
+9. **Temperature scaling** — post-hoc calibration improvement. _(Phase A of improvement plan — ready to implement)_
+10. **Balanced sampling + deeper classifier head** — address minority-class recall collapse. _(Phase B of improvement plan — ready to implement)_
 
 ---
 
@@ -977,4 +1069,4 @@ Fixed MCDropout deterministic validation, gradient clipping, progress bar, basel
 
 ---
 
-_Document consolidates information from: `ideas/evaluate.md`, `ideas/project-overview.md`, `ideas/research.md`, `plans/02-phase1-3.md`, `docs/context-paper/dr-reasearch-context.md`, `docs/context-paper/essential-papers-dr-detection.md`, `docs/VASTAI_DEPLOYMENT.md`, and all source code in `src/`._
+_Document consolidates information from: `ideas/evaluate.md`, `ideas/project-overview.md`, `ideas/research.md`, `plans/02-phase1-3.md`, `plans/07-improve-model.md`, `docs/context-paper/dr-reasearch-context.md`, `docs/context-paper/essential-papers-dr-detection.md`, `docs/VASTAI_DEPLOYMENT.md`, `docs/improve-model.md`, and all source code in `src/`._
