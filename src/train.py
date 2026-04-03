@@ -21,6 +21,8 @@ from config import (
     BATCH_SIZE, NUM_WORKERS, IMAGE_SIZE, RANDOM_SEED, N_FOLDS,
     MC_DROPOUT_RATE, NUM_CLASSES, FOCAL_GAMMA, USE_AMP,
     GRAD_CLIP_NORM, APTOS_PROCESSED_DIR, USE_PREPROCESSED_CACHE,
+    LABEL_SMOOTHING, USE_BALANCED_SAMPLER, CLASSIFIER_HIDDEN_DIM,
+    LR_WARMUP_EPOCHS,
     seed_everything, setup_directories,
 )
 from model import create_model, create_baseline_model
@@ -440,6 +442,16 @@ def main():
         default=USE_PREPROCESSED_CACHE,
         help="Load preprocessed images from data/processed/ cache"
     )
+    parser.add_argument("--label_smoothing", type=float, default=LABEL_SMOOTHING)
+    parser.add_argument("--use_balanced_sampler", action="store_true",
+                        default=USE_BALANCED_SAMPLER)
+    parser.add_argument("--classifier_hidden_dim", type=int,
+                        default=CLASSIFIER_HIDDEN_DIM)
+    parser.add_argument("--lr_warmup_epochs", type=int, default=LR_WARMUP_EPOCHS)
+    parser.add_argument("--use_class_weights", action="store_true", default=True)
+    parser.add_argument("--dropout_rate", type=float, default=MC_DROPOUT_RATE)
+    parser.add_argument("--early_stopping_patience", type=int,
+                        default=EARLY_STOPPING_PATIENCE)
     args = parser.parse_args()
 
     if args.config:
@@ -474,42 +486,76 @@ def main():
         train_df, val_df, APTOS_TRAIN_IMAGES,
         batch_size=args.batch_size, num_workers=NUM_WORKERS,
         use_cache=use_cache, cache_dir=cache_dir,
+        use_balanced_sampler=args.use_balanced_sampler,
     )
+    if args.use_balanced_sampler:
+        print("  Using WeightedRandomSampler for balanced class frequency")
 
-    # Model Selection  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
+    # Model Selection
     print(f"\nBuilding {args.model.upper()} model ...")
     if args.model == "baseline":
         model = create_baseline_model(
             num_classes=NUM_CLASSES,
-            dropout_rate=MC_DROPOUT_RATE,
+            dropout_rate=args.dropout_rate,
             pretrained=True,
+            classifier_hidden_dim=args.classifier_hidden_dim,
         )
         model_name = "baseline_resnet50"
     else:
         model = create_model(
             num_classes=NUM_CLASSES,
-            dropout_rate=MC_DROPOUT_RATE,
+            dropout_rate=args.dropout_rate,
             pretrained=True,
+            classifier_hidden_dim=args.classifier_hidden_dim,
         )
         model_name = "cbam_resnet50"
 
     total_params = sum(p.numel() for p in model.parameters())
     print(f"  Parameters: {total_params:,}")
 
-    # Loss focal 
+    # Loss — conditionally disable alpha weights when balanced sampler is active
     train_labels = torch.tensor(train_df["diagnosis"].values)
-    alpha_weights = compute_class_weights(train_labels, NUM_CLASSES).to(device)
-    print(f"  Class alpha weights: {alpha_weights.cpu().numpy().round(3)}")
+    if args.use_balanced_sampler or not args.use_class_weights:
+        alpha_weights = torch.ones(NUM_CLASSES, device=device)
+        print("  Alpha weights: uniform (balanced sampler or class weights disabled)")
+    else:
+        alpha_weights = compute_class_weights(train_labels, NUM_CLASSES).to(device)
+        print(f"  Class alpha weights: {alpha_weights.cpu().numpy().round(3)}")
 
-    criterion = FocalLoss(gamma=FOCAL_GAMMA, alpha=alpha_weights)
+    criterion = FocalLoss(
+        gamma=FOCAL_GAMMA,
+        alpha=alpha_weights,
+        label_smoothing=args.label_smoothing,
+    )
+    if args.label_smoothing > 0.0:
+        print(f"  Label smoothing: {args.label_smoothing}")
 
-    # Optimizer + Scheduler 
+    # Optimizer + Scheduler
     optimizer = optim.AdamW(
         model.parameters(), lr=args.lr, weight_decay=WEIGHT_DECAY
     )
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=args.epochs
-    )
+
+    if args.lr_warmup_epochs > 0:
+        warmup_scheduler = optim.lr_scheduler.LinearLR(
+            optimizer,
+            start_factor=0.01,
+            end_factor=1.0,
+            total_iters=args.lr_warmup_epochs,
+        )
+        cosine_scheduler = optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=args.epochs - args.lr_warmup_epochs,
+        )
+        scheduler = optim.lr_scheduler.SequentialLR(
+            optimizer,
+            schedulers=[warmup_scheduler, cosine_scheduler],
+            milestones=[args.lr_warmup_epochs],
+        )
+        print(f"  LR warmup: {args.lr_warmup_epochs} epochs "
+              f"({args.lr * 0.01:.2e} → {args.lr:.2e})")
+    else:
+        scheduler = optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=args.epochs,
+        )
 
     # Trainer 
     hyperparams = {
@@ -519,15 +565,24 @@ def main():
         "weight_decay": WEIGHT_DECAY,
         "focal_gamma": FOCAL_GAMMA,
         "image_size": IMAGE_SIZE,
-        "dropout_rate": MC_DROPOUT_RATE,
+        "dropout_rate": args.dropout_rate,
         "grad_clip_norm": GRAD_CLIP_NORM,
         "optimizer": "AdamW",
-        "scheduler": "CosineAnnealingLR",
+        "scheduler": (
+            f"SequentialLR(LinearLR({args.lr_warmup_epochs}ep) + CosineAnnealingLR)"
+            if args.lr_warmup_epochs > 0
+            else "CosineAnnealingLR"
+        ),
         "seed": RANDOM_SEED,
         "n_folds": N_FOLDS,
         "train_size": len(train_df),
         "val_size": len(val_df),
         "total_params": total_params,
+        "label_smoothing": args.label_smoothing,
+        "use_balanced_sampler": args.use_balanced_sampler,
+        "classifier_hidden_dim": args.classifier_hidden_dim,
+        "lr_warmup_epochs": args.lr_warmup_epochs,
+        "use_class_weights": args.use_class_weights,
     }
 
     trainer = Trainer(

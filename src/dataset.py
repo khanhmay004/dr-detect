@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import torch
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Tuple
 
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import StratifiedKFold
@@ -21,6 +21,7 @@ from config import (
     IMAGE_SIZE, IMAGENET_MEAN, IMAGENET_STD,
     BATCH_SIZE, NUM_WORKERS, RANDOM_SEED, N_FOLDS,
     APTOS_PROCESSED_DIR, MESSIDOR_PROCESSED_DIR, USE_PREPROCESSED_CACHE,
+    NUM_CLASSES,
 )
 from preprocessing import ben_graham_preprocess
 
@@ -323,6 +324,42 @@ def get_train_val_split(
 
 
 # =========================================================================
+#  Balanced Sampler
+# =========================================================================
+
+def make_balanced_sampler(
+    labels: list[int] | np.ndarray,
+    num_classes: int = NUM_CLASSES,
+) -> torch.utils.data.WeightedRandomSampler:
+    """Create a WeightedRandomSampler that equalises class frequency per epoch.
+
+    Each sample is weighted by the inverse of its class count, so minority
+    classes are oversampled and majority classes are undersampled.
+
+    Args:
+        labels: Integer class labels for every sample in the dataset.
+        num_classes: Number of distinct classes.
+
+    Returns:
+        WeightedRandomSampler configured for one epoch (len(labels) draws
+        with replacement).
+
+    Example:
+        >>> labels = [0, 0, 0, 0, 1, 2]
+        >>> sampler = make_balanced_sampler(labels, num_classes=3)
+        >>> assert len(sampler) == 6
+    """
+    labels_tensor = torch.tensor(labels, dtype=torch.long)
+    class_counts = torch.bincount(labels_tensor, minlength=num_classes).float()
+    sample_weights = 1.0 / class_counts[labels_tensor]
+    return torch.utils.data.WeightedRandomSampler(
+        weights=sample_weights.tolist(),
+        num_samples=len(labels),
+        replacement=True,
+    )
+
+
+# =========================================================================
 #  DataLoader factories
 # =========================================================================
 
@@ -336,8 +373,26 @@ def create_dataloaders(
     preprocess: bool = True,
     use_cache: bool = False,
     cache_dir: Path | None = None,
+    use_balanced_sampler: bool = False,
 ) -> Tuple[DataLoader, DataLoader]:
-    """Create paired train/val DataLoaders for APTOS."""
+    """Create paired train/val DataLoaders for APTOS.
+
+    Args:
+        train_df: Training split DataFrame.
+        val_df: Validation split DataFrame.
+        image_dir: Path to image directory.
+        batch_size: Batch size.
+        num_workers: DataLoader workers.
+        image_size: Target spatial resolution.
+        preprocess: Apply Ben Graham preprocessing.
+        use_cache: Load from preprocessed cache.
+        cache_dir: Cache directory path.
+        use_balanced_sampler: Use WeightedRandomSampler to equalise class
+            frequency. Mutually exclusive with shuffle.
+
+    Returns:
+        Tuple of (train_loader, val_loader).
+    """
     train_dataset = DRDataset(
         df=train_df, image_dir=image_dir,
         transform=get_train_transform(image_size),
@@ -351,10 +406,18 @@ def create_dataloaders(
         use_cache=use_cache, cache_dir=cache_dir,
     )
 
+    sampler = None
+    shuffle = True
+    if use_balanced_sampler:
+        train_labels = train_df["diagnosis"].values.tolist()
+        sampler = make_balanced_sampler(train_labels)
+        shuffle = False  # Sampler and shuffle are mutually exclusive
+
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
-        shuffle=True,
+        shuffle=shuffle,
+        sampler=sampler,
         num_workers=num_workers,
         pin_memory=True,
         drop_last=True,

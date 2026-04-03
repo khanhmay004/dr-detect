@@ -94,7 +94,16 @@ FOCAL_ALPHA = None
 GRAD_CLIP_NORM = 1.0                        # max L2 norm for gradient clipping
 
 # Mixed-precision training
-USE_AMP = True                            
+USE_AMP = True
+
+# =============================================================================
+# IMPROVEMENT PARAMETERS (Plan 07)
+
+LABEL_SMOOTHING = 0.0                       # 0.0 = off; 0.1 = recommended
+USE_BALANCED_SAMPLER = False                 # WeightedRandomSampler toggle
+CLASSIFIER_HIDDEN_DIM = 0                   # 0 = direct 2048→5; 512 = deeper head
+CLASSIFIER_DROPOUT_RATE = MC_DROPOUT_RATE   # head dropout (may differ from MC rate)
+LR_WARMUP_EPOCHS = 0                        # 0 = no warmup; 2-3 = recommended
 
 # =============================================================================
 # EVALUATION & VISUALIZATION

@@ -1,7 +1,6 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from typing import Optional
 
 from config import FOCAL_GAMMA
 
@@ -10,22 +9,33 @@ class FocalLoss(nn.Module):
     def __init__(
         self,
         gamma: float = FOCAL_GAMMA,
-        alpha: Optional[torch.Tensor] = None,
+        alpha: torch.Tensor | None = None,
         reduction: str = "mean",
+        label_smoothing: float = 0.0,
     ):
         super().__init__()
         self.gamma = gamma
         self.reduction = reduction
+        self.label_smoothing = label_smoothing
         if alpha is not None:
             self.register_buffer("alpha", alpha.float())
         else:
             self.alpha = None
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+        """Focal loss: CE → p_t → focal_weight → alpha → reduce.
+
+        Args:
+            logits: Raw model output [B, C].
+            targets: Ground-truth labels [B].
+
+        Returns:
+            Scalar loss (or per-sample if reduction='none').
         """
-        tính standard CE cho mỗi sample reduction=none -> tính p_t = exp(-CE) -> tính focal weight (1-p_t)^gamma -> nhân focal weight vào CE -> nhân alpha nếu có -> cuối cùng mới reduction
-        """
-        ce_loss = F.cross_entropy(logits, targets, reduction="none")
+        ce_loss = F.cross_entropy(
+            logits, targets, reduction="none",
+            label_smoothing=self.label_smoothing,
+        )
 
         # p_t: probability assigned to the true class 
         # p_t = exp(-CE)
@@ -65,7 +75,14 @@ if __name__ == "__main__":
     fl = FocalLoss(gamma=2.0)
     loss = fl(logits, targets)
     loss.backward()
-
-    print(f"Focal Loss: {loss.item():.4f}")
+    print(f"Focal Loss (no smoothing): {loss.item():.4f}")
     print(f"Grad norm:  {logits.grad.norm().item():.4f}")
+
+    fl_smooth = FocalLoss(gamma=2.0, label_smoothing=0.1)
+    logits2 = logits.detach().clone().requires_grad_(True)
+    loss2 = fl_smooth(logits2, targets)
+    loss2.backward()
+    print(f"Focal Loss (smoothing=0.1): {loss2.item():.4f}")
+    print(f"Grad norm:  {logits2.grad.norm().item():.4f}")
+
     print("Pass check.")

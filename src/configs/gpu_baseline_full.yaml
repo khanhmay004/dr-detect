@@ -1,0 +1,32 @@
+# GPU Baseline ResNet-50 — Full Improvements (Plan 07)
+# All structural changes: balanced sampling, label smoothing, deeper head, LR warmup.
+name: baseline_resnet50_full
+description: Baseline with balanced sampling, label smoothing, warmup, deeper head
+
+model_type: baseline
+pretrained: true
+dropout_rate: 0.3
+
+epochs: 25
+learning_rate: 0.0001
+weight_decay: 0.0001
+batch_size: 16
+grad_clip_norm: 1.0
+early_stopping_patience: 7
+
+focal_gamma: 2.0
+use_class_weights: false         # Disabled — balanced sampler handles class imbalance
+label_smoothing: 0.1
+use_balanced_sampler: true
+classifier_hidden_dim: 512
+classifier_dropout_rate: 0.3
+lr_warmup_epochs: 2
+
+image_size: 512
+num_workers: 4
+fold: 0
+
+device: cuda
+use_amp: true
+
+seed: 42

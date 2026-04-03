@@ -1107,7 +1107,7 @@ Setting all flags to their defaults produces the **exact same pipeline** as the 
   - [x] A1.3: Implement `main()` — CLI entry point (checkpoint, model, fold args)
   - [x] A1.4: Output JSON with `temperature`, `ece_before`, `ece_after`, `brier_before`, `brier_after`
   - [x] A1.5: Output before/after reliability diagram overlay figure
-  - [ ] A1.6: CPU test — run on existing baseline fold 0 checkpoint
+  - [x] A1.6: CPU test — run on existing baseline fold 0 checkpoint
 
 - [x] **A2**: Create `src/threshold_tuning.py`
   - [x] A2.1: Implement `tune_thresholds()` — Nelder-Mead optimisation in log-space

@@ -96,6 +96,7 @@ class CBAMResNet50(nn.Module):
         dropout_rate: float = MC_DROPOUT_RATE,
         pretrained: bool = True,
         reduction: int = CBAM_REDUCTION_RATIO,
+        classifier_hidden_dim: int = 0,
     ):
         super().__init__()
 
@@ -103,7 +104,6 @@ class CBAMResNet50(nn.Module):
         weights = ResNet50_Weights.IMAGENET1K_V2 if pretrained else None
         backbone = models.resnet50(weights=weights)
 
-        # extract stages ( 0 xai keep backbone.fc / backbone.avgpool)
         self.stem = nn.Sequential(
             backbone.conv1, backbone.bn1, backbone.relu, backbone.maxpool,
         )
@@ -112,16 +112,29 @@ class CBAMResNet50(nn.Module):
         self.layer3 = backbone.layer3     # out: 1024 channels
         self.layer4 = backbone.layer4     # out: 2048 channels
 
-        # cbam sau moi stage
+        # CBAM after each stage
         self.cbam1 = CBAM(256,  reduction)
         self.cbam2 = CBAM(512,  reduction)
         self.cbam3 = CBAM(1024, reduction)
         self.cbam4 = CBAM(2048, reduction)
 
-        # DROPOUT + CLASSIFIER
+        # Classifier head
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.mc_dropout = MCDropout(dropout_rate)
-        self.fc = nn.Linear(2048, num_classes)
+
+        if classifier_hidden_dim > 0:
+            self.classifier = nn.Sequential(
+                nn.Linear(2048, classifier_hidden_dim),
+                nn.BatchNorm1d(classifier_hidden_dim),
+                nn.ReLU(inplace=True),
+                MCDropout(dropout_rate),
+                nn.Linear(classifier_hidden_dim, num_classes),
+            )
+            self._use_classifier_seq = True
+        else:
+            # Preserve original attribute names for checkpoint compatibility
+            self.mc_dropout = MCDropout(dropout_rate)
+            self.fc = nn.Linear(2048, num_classes)
+            self._use_classifier_seq = False
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
@@ -140,8 +153,11 @@ class CBAMResNet50(nn.Module):
 
         x = self.avgpool(x)
         x = torch.flatten(x, 1)           # (B, 2048)
-        x = self.mc_dropout(x)            
-        x = self.fc(x)                    # (B, num_classes)
+        if self._use_classifier_seq:
+            x = self.classifier(x)         # (B, num_classes)
+        else:
+            x = self.mc_dropout(x)
+            x = self.fc(x)                 # (B, num_classes)
         return x
 
     @contextmanager
@@ -162,11 +178,24 @@ def create_model(
     num_classes: int = NUM_CLASSES,
     dropout_rate: float = MC_DROPOUT_RATE,
     pretrained: bool = True,
+    classifier_hidden_dim: int = 0,
 ) -> CBAMResNet50:
+    """Factory for CBAM-ResNet50.
+
+    Args:
+        num_classes: Number of output classes.
+        dropout_rate: MC Dropout probability.
+        pretrained: Use ImageNet pretrained backbone.
+        classifier_hidden_dim: Hidden dim for deeper head (0 = original head).
+
+    Returns:
+        CBAMResNet50 instance.
+    """
     return CBAMResNet50(
         num_classes=num_classes,
         dropout_rate=dropout_rate,
         pretrained=pretrained,
+        classifier_hidden_dim=classifier_hidden_dim,
     )
 
 
@@ -179,6 +208,7 @@ class BaselineResNet50(nn.Module):
         num_classes: int = NUM_CLASSES,
         dropout_rate: float = MC_DROPOUT_RATE,
         pretrained: bool = True,
+        classifier_hidden_dim: int = 0,
     ):
         super().__init__()
 
@@ -194,8 +224,20 @@ class BaselineResNet50(nn.Module):
         self.layer4 = backbone.layer4
 
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.mc_dropout = MCDropout(dropout_rate)
-        self.fc = nn.Linear(2048, num_classes)
+
+        if classifier_hidden_dim > 0:
+            self.classifier = nn.Sequential(
+                nn.Linear(2048, classifier_hidden_dim),
+                nn.BatchNorm1d(classifier_hidden_dim),
+                nn.ReLU(inplace=True),
+                MCDropout(dropout_rate),
+                nn.Linear(classifier_hidden_dim, num_classes),
+            )
+            self._use_classifier_seq = True
+        else:
+            self.mc_dropout = MCDropout(dropout_rate)
+            self.fc = nn.Linear(2048, num_classes)
+            self._use_classifier_seq = False
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.stem(x)
@@ -204,9 +246,12 @@ class BaselineResNet50(nn.Module):
         x = self.layer3(x)
         x = self.layer4(x)
         x = self.avgpool(x)
-        x = torch.flatten(x, 1)
-        x = self.mc_dropout(x)
-        x = self.fc(x)
+        x = torch.flatten(x, 1)           # (B, 2048)
+        if self._use_classifier_seq:
+            x = self.classifier(x)         # (B, num_classes)
+        else:
+            x = self.mc_dropout(x)
+            x = self.fc(x)                 # (B, num_classes)
         return x
 
     @contextmanager
@@ -226,11 +271,24 @@ def create_baseline_model(
     num_classes: int = NUM_CLASSES,
     dropout_rate: float = MC_DROPOUT_RATE,
     pretrained: bool = True,
+    classifier_hidden_dim: int = 0,
 ) -> BaselineResNet50:
+    """Factory for BaselineResNet50.
+
+    Args:
+        num_classes: Number of output classes.
+        dropout_rate: MC Dropout probability.
+        pretrained: Use ImageNet pretrained backbone.
+        classifier_hidden_dim: Hidden dim for deeper head (0 = original head).
+
+    Returns:
+        BaselineResNet50 instance.
+    """
     return BaselineResNet50(
         num_classes=num_classes,
         dropout_rate=dropout_rate,
         pretrained=pretrained,
+        classifier_hidden_dim=classifier_hidden_dim,
     )
 
 
@@ -240,41 +298,53 @@ def create_baseline_model(
 
 
 if __name__ == "__main__":
-    # --- CBAM Model Shape test ---
-    model = CBAMResNet50(num_classes=5, pretrained=False)
     x = torch.randn(2, 3, 512, 512)
-    out = model(x)
-    print(f"CBAM Output shape: {out.shape}")
 
-    # --- MC Dropout stays active in eval mode ---
+    # --- CBAM Model (original head, hidden_dim=0) ---
+    model = CBAMResNet50(num_classes=5, pretrained=False)
+    out = model(x)
+    print(f"CBAM (hidden_dim=0) output shape: {out.shape}")
+
     model.eval()
     o1, o2 = model(x), model(x)
     assert not torch.equal(o1, o2), "MC Dropout must produce different outputs!"
     print("MC Dropout active in eval() ✓")
 
-    # --- Deterministic mode test ---
     with model.deterministic_mode():
         d1 = model(x)
         d2 = model(x)
     assert torch.equal(d1, d2), "Deterministic mode should produce identical outputs!"
     print("Deterministic mode works ✓")
 
-    # --- MC mode restored after context exit ---
     o3, o4 = model(x), model(x)
     assert not torch.equal(o3, o4), "MC mode should be restored after context exit!"
     print("MC mode restored after context exit ✓")
 
-    # --- CBAM Parameter count ---
     cbam_params = sum(p.numel() for p in model.parameters())
-    print(f"CBAM params: {cbam_params:,}")
+    print(f"CBAM params (hidden_dim=0): {cbam_params:,}")
 
-    # --- Baseline Model test ---
+    # --- CBAM Model (deeper head, hidden_dim=512) ---
+    model_deep = CBAMResNet50(num_classes=5, pretrained=False, classifier_hidden_dim=512)
+    out_deep = model_deep(x)
+    print(f"\nCBAM (hidden_dim=512) output shape: {out_deep.shape}")
+
+    model_deep.eval()
+    with model_deep.deterministic_mode():
+        dd1 = model_deep(x)
+        dd2 = model_deep(x)
+    assert torch.equal(dd1, dd2), "Deeper head deterministic mode should work!"
+    print("Deeper head deterministic mode works ✓")
+
+    deep_params = sum(p.numel() for p in model_deep.parameters())
+    print(f"CBAM params (hidden_dim=512): {deep_params:,}")
+    print(f"Deeper head adds {deep_params - cbam_params:,} parameters")
+
+    # --- Baseline Model (original head) ---
     baseline = BaselineResNet50(num_classes=5, pretrained=False)
     baseline.eval()
     out_b = baseline(x)
-    print(f"Baseline Output shape: {out_b.shape}")
+    print(f"\nBaseline (hidden_dim=0) output shape: {out_b.shape}")
 
-    # --- Baseline deterministic mode ---
     with baseline.deterministic_mode():
         bd1 = baseline(x)
         bd2 = baseline(x)
@@ -282,7 +352,22 @@ if __name__ == "__main__":
     print("Baseline deterministic mode works ✓")
 
     baseline_params = sum(p.numel() for p in baseline.parameters())
-    print(f"Baseline params: {baseline_params:,}")
-    print(f"CBAM adds {cbam_params - baseline_params:,} parameters")
+    print(f"Baseline params (hidden_dim=0): {baseline_params:,}")
 
+    # --- Baseline Model (deeper head) ---
+    baseline_deep = BaselineResNet50(num_classes=5, pretrained=False, classifier_hidden_dim=512)
+    baseline_deep.eval()
+    out_bd = baseline_deep(x)
+    print(f"\nBaseline (hidden_dim=512) output shape: {out_bd.shape}")
+
+    with baseline_deep.deterministic_mode():
+        bdd1 = baseline_deep(x)
+        bdd2 = baseline_deep(x)
+    assert torch.equal(bdd1, bdd2), "Baseline deeper head deterministic mode should work!"
+    print("Baseline deeper head deterministic mode works ✓")
+
+    baseline_deep_params = sum(p.numel() for p in baseline_deep.parameters())
+    print(f"Baseline params (hidden_dim=512): {baseline_deep_params:,}")
+
+    print(f"\nCBAM adds {cbam_params - baseline_params:,} parameters (original head)")
     print("All model tests passed ✓")

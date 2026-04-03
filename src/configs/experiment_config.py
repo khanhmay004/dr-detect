@@ -1,7 +1,7 @@
 """Experiment configuration system for DR detection pipeline."""
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Any
+from typing import Any
 import sys
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -10,6 +10,8 @@ from config import (
     EPOCHS, LEARNING_RATE, WEIGHT_DECAY, BATCH_SIZE, NUM_WORKERS,
     IMAGE_SIZE, MC_DROPOUT_RATE, FOCAL_GAMMA, GRAD_CLIP_NORM,
     RANDOM_SEED, N_FOLDS, EARLY_STOPPING_PATIENCE,
+    LABEL_SMOOTHING, USE_BALANCED_SAMPLER, CLASSIFIER_HIDDEN_DIM,
+    CLASSIFIER_DROPOUT_RATE, LR_WARMUP_EPOCHS,
 )
 
 
@@ -34,6 +36,13 @@ class ExperimentConfig:
     focal_gamma: float = FOCAL_GAMMA
     use_class_weights: bool = True
 
+    # Plan 07 improvement fields
+    label_smoothing: float = LABEL_SMOOTHING
+    use_balanced_sampler: bool = USE_BALANCED_SAMPLER
+    classifier_hidden_dim: int = CLASSIFIER_HIDDEN_DIM
+    classifier_dropout_rate: float = CLASSIFIER_DROPOUT_RATE
+    lr_warmup_epochs: int = LR_WARMUP_EPOCHS
+
     image_size: int = IMAGE_SIZE
     num_workers: int = NUM_WORKERS
     fold: int = 0
@@ -44,8 +53,8 @@ class ExperimentConfig:
 
     seed: int = RANDOM_SEED
 
-    checkpoint_dir: Optional[str] = None
-    log_dir: Optional[str] = None
+    checkpoint_dir: str | None = None
+    log_dir: str | None = None
 
     @classmethod
     def from_yaml(cls, yaml_path: str) -> "ExperimentConfig":
@@ -113,7 +122,15 @@ def gpu_cbam_config() -> ExperimentConfig:
 
 
 def load_config(config_path: str, cli_args: Any) -> Any:
-    """Load config from file and merge with CLI arguments."""
+    """Load config from file and merge with CLI arguments.
+
+    Args:
+        config_path: Path to YAML config file.
+        cli_args: Argparse namespace to populate.
+
+    Returns:
+        Updated cli_args namespace.
+    """
     config = ExperimentConfig.from_yaml(config_path)
 
     cli_args.epochs = config.epochs
@@ -121,5 +138,15 @@ def load_config(config_path: str, cli_args: Any) -> Any:
     cli_args.batch_size = config.batch_size
     cli_args.fold = config.fold
     cli_args.model = config.model_type
+
+    # Plan 07 additions
+    cli_args.label_smoothing = config.label_smoothing
+    cli_args.use_balanced_sampler = config.use_balanced_sampler
+    cli_args.classifier_hidden_dim = config.classifier_hidden_dim
+    cli_args.classifier_dropout_rate = config.classifier_dropout_rate
+    cli_args.lr_warmup_epochs = config.lr_warmup_epochs
+    cli_args.use_class_weights = config.use_class_weights
+    cli_args.dropout_rate = config.dropout_rate
+    cli_args.early_stopping_patience = config.early_stopping_patience
 
     return cli_args

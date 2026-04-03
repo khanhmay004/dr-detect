@@ -1,0 +1,33 @@
+# GPU Baseline ResNet-50 — Sampler Only (Plan 07)
+# Balanced sampling only, no other structural changes.
+# Isolates the effect of WeightedRandomSampler on minority class recall.
+name: baseline_resnet50_sampler_only
+description: Baseline with balanced sampling only — ablation experiment
+
+model_type: baseline
+pretrained: true
+dropout_rate: 0.5
+
+epochs: 20
+learning_rate: 0.0001
+weight_decay: 0.0001
+batch_size: 16
+grad_clip_norm: 1.0
+early_stopping_patience: 5
+
+focal_gamma: 2.0
+use_class_weights: false         # Disabled — balanced sampler handles class imbalance
+label_smoothing: 0.0
+use_balanced_sampler: true
+classifier_hidden_dim: 0
+classifier_dropout_rate: 0.5
+lr_warmup_epochs: 0
+
+image_size: 512
+num_workers: 4
+fold: 0
+
+device: cuda
+use_amp: true
+
+seed: 42
