@@ -78,21 +78,27 @@ def mc_dropout_probs(
     all_probs: list[torch.Tensor] = []
     all_labels: list[np.ndarray] = []
 
-    pbar = tqdm(dataloader, desc=f"MC Inference (T={n_passes})")
-    for images, labels in pbar:
-        images = images.to(device, non_blocking=True)
+    with torch.no_grad():
+        pbar = tqdm(dataloader, desc=f"MC Inference (T={n_passes})")
+        for images, labels in pbar:
+            images = images.to(device, non_blocking=True)
 
-        pass_probs = []
-        for _ in range(n_passes):
-            with torch.amp.autocast(device_type=device.type, enabled=amp_enabled):
-                logits = model(images)
-            probs = F.softmax(logits.float(), dim=1)
-            pass_probs.append(probs.cpu())
+            pass_probs = []
+            for _ in range(n_passes):
+                with torch.amp.autocast(device_type=device.type, enabled=amp_enabled):
+                    logits = model(images)
+                probs = F.softmax(logits.float(), dim=1).cpu()
+                pass_probs.append(probs)
+                del logits, probs
 
-        stacked = torch.stack(pass_probs, dim=0)
-        mean_probs = stacked.mean(dim=0)
-        all_probs.append(mean_probs)
-        all_labels.append(labels.numpy())
+            stacked = torch.stack(pass_probs, dim=0)
+            mean_probs = stacked.mean(dim=0)
+            all_probs.append(mean_probs)
+            all_labels.append(labels.numpy())
+            
+            del images, pass_probs, stacked, mean_probs
+            if device.type == "cuda":
+                torch.cuda.empty_cache()
 
     return (
         torch.cat(all_probs, dim=0).numpy(),
@@ -324,6 +330,9 @@ def main() -> None:
     epoch = ckpt.get("epoch", "?")
     kappa = ckpt.get("best_kappa", "?")
     logger.info(f"  Checkpoint epoch: {epoch}  |  best kappa: {kappa}")
+    
+    if device.type == "cuda":
+        torch.cuda.empty_cache()
 
     logger.info(f"\nRunning MC Dropout inference (T={args.mc_passes}) ...")
     mean_probs, labels = mc_dropout_probs(model, val_loader, device, n_passes=args.mc_passes)

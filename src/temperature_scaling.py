@@ -84,6 +84,10 @@ def collect_val_logits(
                 logits = model(images)
             all_logits.append(logits.float().cpu())
             all_labels.append(labels)
+            
+            del images, logits
+            if device.type == "cuda":
+                torch.cuda.empty_cache()
 
     return torch.cat(all_logits, dim=0), torch.cat(all_labels, dim=0)
 
