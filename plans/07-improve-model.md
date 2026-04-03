@@ -1124,60 +1124,60 @@ Setting all flags to their defaults produces the **exact same pipeline** as the 
 
 ### Phase B — Structural Pipeline Changes
 
-- [ ] **B1**: Update `src/config.py` — add 5 new constants
-  - [ ] B1.1: `LABEL_SMOOTHING = 0.0`
-  - [ ] B1.2: `USE_BALANCED_SAMPLER = False`
-  - [ ] B1.3: `CLASSIFIER_HIDDEN_DIM = 0`
-  - [ ] B1.4: `CLASSIFIER_DROPOUT_RATE = MC_DROPOUT_RATE`
-  - [ ] B1.5: `LR_WARMUP_EPOCHS = 0`
+- [x] **B1**: Update `src/config.py` — add 5 new constants
+  - [x] B1.1: `LABEL_SMOOTHING = 0.0`
+  - [x] B1.2: `USE_BALANCED_SAMPLER = False`
+  - [x] B1.3: `CLASSIFIER_HIDDEN_DIM = 0`
+  - [x] B1.4: `CLASSIFIER_DROPOUT_RATE = MC_DROPOUT_RATE`
+  - [x] B1.5: `LR_WARMUP_EPOCHS = 0`
 
-- [ ] **B2**: Update `src/loss.py` — add `label_smoothing` to FocalLoss
-  - [ ] B2.1: Add `label_smoothing` parameter to `__init__`
-  - [ ] B2.2: Pass `label_smoothing` to `F.cross_entropy` in `forward`
-  - [ ] B2.3: Verify self-test (`__main__` block) still passes
+- [x] **B2**: Update `src/loss.py` — add `label_smoothing` to FocalLoss
+  - [x] B2.1: Add `label_smoothing` parameter to `__init__`
+  - [x] B2.2: Pass `label_smoothing` to `F.cross_entropy` in `forward`
+  - [x] B2.3: Verify self-test (`__main__` block) still passes
 
-- [ ] **B3**: Update `src/dataset.py` — add WeightedRandomSampler
-  - [ ] B3.1: Implement `make_balanced_sampler()` function
-  - [ ] B3.2: Add `use_balanced_sampler` parameter to `create_dataloaders()`
-  - [ ] B3.3: Conditionally create sampler and set `shuffle=False` when active
-  - [ ] B3.4: Verify self-test (`__main__` block) still passes
+- [x] **B3**: Update `src/dataset.py` — add WeightedRandomSampler
+  - [x] B3.1: Implement `make_balanced_sampler()` function
+  - [x] B3.2: Add `use_balanced_sampler` parameter to `create_dataloaders()`
+  - [x] B3.3: Conditionally create sampler and set `shuffle=False` when active
+  - [x] B3.4: Verify self-test (`__main__` block) still passes
 
-- [ ] **B4**: Update `src/train.py` — LR warmup scheduler
-  - [ ] B4.1: Import `LR_WARMUP_EPOCHS` from config
-  - [ ] B4.2: Replace `CosineAnnealingLR` with `SequentialLR(LinearLR + CosineAnnealingLR)` when warmup > 0
-  - [ ] B4.3: Verify epoch logging still shows correct LR values
+- [x] **B4**: Update `src/train.py` — LR warmup scheduler
+  - [x] B4.1: Import `LR_WARMUP_EPOCHS` from config
+  - [x] B4.2: Replace `CosineAnnealingLR` with `SequentialLR(LinearLR + CosineAnnealingLR)` when warmup > 0
+  - [x] B4.3: Verify epoch logging still shows correct LR values
 
-- [ ] **B5**: Update `src/model.py` — deeper classifier head
-  - [ ] B5.1: Add `classifier_hidden_dim` parameter to `CBAMResNet50.__init__`
-  - [ ] B5.2: Implement conditional head: `nn.Sequential(Linear → BN → ReLU → MCDropout → Linear)` when hidden_dim > 0, original `mc_dropout + fc` when 0
-  - [ ] B5.3: Update `forward()` to use the appropriate path
-  - [ ] B5.4: Apply identical changes to `BaselineResNet50`
-  - [ ] B5.5: Update `create_model()` and `create_baseline_model()` factory functions
-  - [ ] B5.6: Verify old checkpoint loads with `hidden_dim=0` (backward compatibility)
-  - [ ] B5.7: Verify `deterministic_mode()` still finds MCDropout inside Sequential
-  - [ ] B5.8: Update `__main__` test block for both head variants
+- [x] **B5**: Update `src/model.py` — deeper classifier head
+  - [x] B5.1: Add `classifier_hidden_dim` parameter to `CBAMResNet50.__init__`
+  - [x] B5.2: Implement conditional head: `nn.Sequential(Linear → BN → ReLU → MCDropout → Linear)` when hidden_dim > 0, original `mc_dropout + fc` when 0
+  - [x] B5.3: Update `forward()` to use the appropriate path
+  - [x] B5.4: Apply identical changes to `BaselineResNet50`
+  - [x] B5.5: Update `create_model()` and `create_baseline_model()` factory functions
+  - [x] B5.6: Verify old checkpoint loads with `hidden_dim=0` (backward compatibility)
+  - [x] B5.7: Verify `deterministic_mode()` still finds MCDropout inside Sequential
+  - [x] B5.8: Update `__main__` test block for both head variants
 
-- [ ] **B6**: Update `src/configs/experiment_config.py`
-  - [ ] B6.1: Add new fields to `ExperimentConfig` dataclass
-  - [ ] B6.2: Update `load_config()` to pass new fields to CLI args
+- [x] **B6**: Update `src/configs/experiment_config.py`
+  - [x] B6.1: Add new fields to `ExperimentConfig` dataclass
+  - [x] B6.2: Update `load_config()` to pass new fields to CLI args
 
-- [ ] **B7**: Create `src/configs/gpu_baseline_improved.yaml`
-  - [ ] B7.1: Write config with all improvement flags enabled
-  - [ ] B7.2: Verify it loads correctly via `ExperimentConfig.from_yaml()`
+- [x] **B7**: Create `src/configs/gpu_baseline_sampler_only.yaml` and `src/configs/gpu_baseline_full.yaml`
+  - [x] B7.1: Write sampler-only config (balanced sampler only, no other changes)
+  - [x] B7.2: Write full config with all improvement flags enabled
 
-- [ ] **B8**: Update `src/train.py` — wire everything together
-  - [ ] B8.1: Add new CLI arguments (`--label_smoothing`, `--use_balanced_sampler`, `--classifier_hidden_dim`, `--lr_warmup_epochs`, `--use_class_weights`)
-  - [ ] B8.2: Update loss creation to use `args.label_smoothing`
-  - [ ] B8.3: Update dataloader creation to use `args.use_balanced_sampler`
-  - [ ] B8.4: Update model creation to use `args.classifier_hidden_dim`
-  - [ ] B8.5: Update scheduler creation to use `args.lr_warmup_epochs`
-  - [ ] B8.6: Conditionally disable alpha weights when balanced sampler is active
-  - [ ] B8.7: Log all new hyperparameters in `hyperparams` dict
-  - [ ] B8.8: Update `_save_run_metrics` to include new params
+- [x] **B8**: Update `src/train.py` — wire everything together
+  - [x] B8.1: Add new CLI arguments (`--label_smoothing`, `--use_balanced_sampler`, `--classifier_hidden_dim`, `--lr_warmup_epochs`, `--use_class_weights`)
+  - [x] B8.2: Update loss creation to use `args.label_smoothing`
+  - [x] B8.3: Update dataloader creation to use `args.use_balanced_sampler`
+  - [x] B8.4: Update model creation to use `args.classifier_hidden_dim`
+  - [x] B8.5: Update scheduler creation to use `args.lr_warmup_epochs`
+  - [x] B8.6: Conditionally disable alpha weights when balanced sampler is active
+  - [x] B8.7: Log all new hyperparameters in `hyperparams` dict
+  - [x] B8.8: Update `_save_run_metrics` to include new params
 
-- [ ] **B9**: Update `src/evaluate.py` — support deeper head
-  - [ ] B9.1: Add `--classifier_hidden_dim` CLI argument
-  - [ ] B9.2: Pass to model creation
+- [x] **B9**: Update `src/evaluate.py` — support deeper head
+  - [x] B9.1: Add `--classifier_hidden_dim` CLI argument
+  - [x] B9.2: Pass to model creation
 
 - [ ] **B10**: CPU Smoke Tests
   - [ ] B10.1: Run `train.py` with all improvements ON (2 epochs, batch_size=2, CPU) — must complete without error
@@ -1242,6 +1242,8 @@ Setting all flags to their defaults produces the **exact same pipeline** as the 
 | `src/temperature_scaling.py` | A1 | **New** | Post-hoc calibration script |
 | `src/threshold_tuning.py` | A2 | **New** | Per-class threshold optimisation script |
 | `src/configs/gpu_baseline_improved.yaml` | B7 | **New** | Improved training config |
+| `src/configs/gpu_baseline_sampler_only.yaml` | B7 | **New** | Sampler-only ablation config |
+| `src/configs/gpu_baseline_full.yaml` | B7 | **New** | Full improvements config |
 | `src/configs/gpu_baseline_ordinal.yaml` | C2 | **New** | Ordinal loss training config |
 
 **Total**: 8 modified files, 4 new files.

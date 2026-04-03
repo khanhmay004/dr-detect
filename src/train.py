@@ -41,13 +41,15 @@ class Trainer:
         fold: int = 0,
         model_name: str = "cbam_resnet50",
         grad_clip_norm: float = GRAD_CLIP_NORM,
-        hyperparams: dict = None,
+        hyperparams: dict | None = None,
+        early_stopping_patience: int = EARLY_STOPPING_PATIENCE,
     ):
         self.model = model.to(device)
         self.device = device
         self.fold = fold
         self.model_name = model_name
         self.grad_clip_norm = grad_clip_norm
+        self.early_stopping_patience = early_stopping_patience
 
         # AMP scaler chi dung tren GPU, dung de tu dong scale loss va unscale gradients
         self.scaler = torch.amp.GradScaler(
@@ -325,7 +327,7 @@ class Trainer:
             self.save_checkpoint(optimizer, scheduler, is_best)
 
             # Early stopping
-            if self.epochs_no_improve >= EARLY_STOPPING_PATIENCE:
+            if self.epochs_no_improve >= self.early_stopping_patience:
                 print(f"\n  Early stopping at epoch {epoch + 1}")
                 break
 
@@ -591,6 +593,7 @@ def main():
         model_name=model_name,
         grad_clip_norm=GRAD_CLIP_NORM,
         hyperparams=hyperparams,
+        early_stopping_patience=args.early_stopping_patience,
     )
 
     if args.resume:

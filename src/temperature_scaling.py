@@ -213,6 +213,10 @@ def main() -> None:
         "--ece_bins", type=int, default=15,
         help="Number of bins for ECE computation",
     )
+    parser.add_argument(
+        "--classifier_hidden_dim", type=int, default=0,
+        help="Classifier hidden dim (must match training config)",
+    )
     args = parser.parse_args()
 
     checkpoint_path = args.checkpoint
@@ -258,12 +262,14 @@ def main() -> None:
             num_classes=NUM_CLASSES,
             dropout_rate=MC_DROPOUT_RATE,
             pretrained=False,
+            classifier_hidden_dim=args.classifier_hidden_dim,
         )
     else:
         model = create_model(
             num_classes=NUM_CLASSES,
             dropout_rate=MC_DROPOUT_RATE,
             pretrained=False,
+            classifier_hidden_dim=args.classifier_hidden_dim,
         )
 
     ckpt = torch.load(checkpoint_path, map_location=device, weights_only=False)

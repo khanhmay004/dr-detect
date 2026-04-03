@@ -419,6 +419,10 @@ def main():
         "--thresholds", type=str, default=None,
         help="Per-class thresholds: comma-separated 5 floats or path to JSON",
     )
+    parser.add_argument(
+        "--classifier_hidden_dim", type=int, default=0,
+        help="Classifier hidden dim (must match training config)",
+    )
     args = parser.parse_args()
 
     # ---- Resolve checkpoint path (support wildcards) ----
@@ -528,12 +532,14 @@ def main():
             num_classes=NUM_CLASSES,
             dropout_rate=MC_DROPOUT_RATE,
             pretrained=False,
+            classifier_hidden_dim=args.classifier_hidden_dim,
         )
     else:
         model = create_model(
             num_classes=NUM_CLASSES,
             dropout_rate=MC_DROPOUT_RATE,
             pretrained=False,
+            classifier_hidden_dim=args.classifier_hidden_dim,
         )
     ckpt = torch.load(args.checkpoint, map_location=device, weights_only=False)
     model.load_state_dict(ckpt["model_state_dict"])
