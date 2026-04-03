@@ -465,10 +465,10 @@ def main():
 
     print(f"  Train: {len(train_df)}  |  Val: {len(val_df)}")
 
-    # use_cache = args.use_cache and APTOS_PROCESSED_DIR.exists()
-    # cache_dir = APTOS_PROCESSED_DIR if use_cache else None
-    # if use_cache:
-    #     print(f"  Using preprocessed cache: {APTOS_PROCESSED_DIR}")
+    use_cache = args.use_cache and APTOS_PROCESSED_DIR.exists()
+    cache_dir = APTOS_PROCESSED_DIR if use_cache else None
+    if use_cache:
+        print(f"  Using preprocessed cache: {APTOS_PROCESSED_DIR}")
 
     train_loader, val_loader = create_dataloaders(
         train_df, val_df, APTOS_TRAIN_IMAGES,

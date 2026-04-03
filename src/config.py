@@ -10,7 +10,7 @@ import torch
 PROJECT_ROOT = Path(__file__).parent.parent
 
 # Dataset paths
-APTOS_DIR = PROJECT_ROOT / "data_split" 
+APTOS_DIR = PROJECT_ROOT / "data_split" / "data_split" "
 MESSIDOR_DIR = PROJECT_ROOT / "messidor-2"
 
 APTOS_TRAIN_CSV = APTOS_DIR / "train_label.csv"
