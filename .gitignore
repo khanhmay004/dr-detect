@@ -11,6 +11,7 @@ vast/
 aptos/
 messidor-2/
 data/
+data_split/
 dr-results/
 phase2-results/
 phase3-results/

@@ -1,38 +1,12 @@
-"""
-Uncertainty-aware evaluation on the Messidor-2 dataset.
-
-This script loads a trained CBAM-ResNet50 checkpoint and runs MC Dropout
-inference.  For each image it performs *T* stochastic forward passes and
-computes:
-
-- **Predictive mean distribution** p̄(y|x):  average softmax across T passes.
-- **Predictive entropy** H[p̄]:  −Σ p̄_c · log(p̄_c).
-  High entropy → the model is uncertain about this image.
-
-The results are saved with timestamped, metadata-rich filenames::
-
-    outputs/results/{model}_messidor2_{timestamp}_{T}T_{N}img_uncertainty.csv
-    outputs/results/{model}_messidor2_{timestamp}_{T}T_{N}img_metrics.json
-
-Usage::
-
+"""Usage:
     python evaluate.py --checkpoint outputs/checkpoints/cbam_resnet50_fold0_best.pth
     python evaluate.py --checkpoint best.pth --mc_passes 50
     python evaluate.py --checkpoint best.pth --model baseline --max_images 10 --mc_passes 3
 
-    # Wildcard support (auto-selects most recent, works with/without timestamps):
+    # Wildcard 
     python evaluate.py --checkpoint "outputs/checkpoints/cbam_resnet50*fold0_best.pth"
     python evaluate.py --checkpoint "outputs/checkpoints/baseline*fold0_best.pth" --model baseline
 
-MLOps notes
------------
-- ``model.eval()`` is called so BatchNorm uses its running statistics
-  (stable predictions).  ``MCDropout`` is designed to remain active
-  regardless of the model's training flag.
-- We use ``torch.no_grad()`` because we never backpropagate during
-  inference — this saves ~50 % memory by not storing activations.
-- AMP autocast is used for the forward passes to keep VRAM usage low,
-  but entropy is always computed in float32 for numerical precision.
 """
 
 import argparse
@@ -52,18 +26,17 @@ from tqdm import tqdm
 
 from config import (
     MESSIDOR_CSV, MESSIDOR_IMAGES,
+    APTOS_TEST_CSV, APTOS_TEST_IMAGES,
+    APTOS_PROCESSED_DIR, USE_PREPROCESSED_CACHE,
     FIGURES_DIR, RESULTS_DIR, DR_GRADES, DR_COLORS,
     BATCH_SIZE, NUM_WORKERS, IMAGE_SIZE,
     MC_DROPOUT_RATE, MC_INFERENCE_PASSES, NUM_CLASSES, USE_AMP,
     seed_everything, setup_directories, RANDOM_SEED,
 )
 from model import create_model, create_baseline_model
-from dataset import MessidorDataset, get_val_transform
+from dataset import MessidorDataset, DRDataset, get_val_transform
 
 
-# =========================================================================
-#  Core: MC Dropout uncertainty estimation
-# =========================================================================
 
 @torch.no_grad()
 def mc_dropout_inference(
@@ -72,24 +45,7 @@ def mc_dropout_inference(
     device: torch.device,
     n_passes: int = MC_INFERENCE_PASSES,
 ) -> dict:
-    """Run T stochastic forward passes and compute predictive statistics.
 
-    Args:
-        model: Trained model (must contain ``MCDropout`` layers).
-        dataloader: Messidor-2 DataLoader (yields image, label, image_id).
-        device: CUDA or CPU.
-        n_passes: Number of MC forward passes *T*.
-
-    Returns:
-        Dictionary with arrays:
-          - image_ids:      list[str]
-          - labels:         (N,)  ground-truth grades (-1 if unavailable)
-          - mean_probs:     (N, C)  predictive mean distribution
-          - entropy:        (N,)   predictive entropy
-          - predictions:    (N,)   argmax of mean_probs
-          - confidence:     (N,)   max of mean_probs
-          - all_probs:      (N, T, C)  raw per-pass softmax (for analysis)
-    """
     # model.eval() → BatchNorm uses running stats; MCDropout stays active
     model.eval()
 
@@ -148,9 +104,7 @@ def mc_dropout_inference(
 
 
 # =========================================================================
-#  Metrics (when ground-truth labels are available)
-# =========================================================================
-
+#  Metrics
 def compute_ece(
     mean_probs: np.ndarray,
     labels: np.ndarray,
@@ -181,24 +135,12 @@ def compute_brier_score(
     labels: np.ndarray,
     num_classes: int,
 ) -> float:
-    """Compute multiclass Brier score."""
     one_hot = np.eye(num_classes, dtype=np.float32)[labels]
     brier = np.mean(np.sum((mean_probs - one_hot) ** 2, axis=1))
     return float(brier)
 
 
 def compute_metrics(labels: np.ndarray, predictions: np.ndarray, mean_probs: np.ndarray) -> dict:
-    """Compute standard classification metrics including binary referable DR metrics.
-
-    Args:
-        labels: Ground truth grade labels, shape (N,).
-        predictions: Predicted grade labels, shape (N,).
-        mean_probs: Mean predicted probabilities, shape (N, C).
-
-    Returns:
-        Dictionary containing accuracy, quadratic_kappa, binary_referable_auc,
-        binary_referable_sens, binary_referable_spec, and classification_report.
-    """
     from sklearn.metrics import (
         accuracy_score, cohen_kappa_score,
         classification_report, roc_auc_score, confusion_matrix,
@@ -387,7 +329,7 @@ def plot_uncertainty_histogram(entropy, predictions, save_path=None):
 
     ax.set_xlabel("Predictive Entropy", fontsize=12)
     ax.set_ylabel("Count", fontsize=12)
-    ax.set_title("Uncertainty Distribution - Messidor-2", fontsize=14, fontweight="bold")
+    ax.set_title("Uncertainty Distribution", fontsize=14, fontweight="bold")
     ax.legend(fontsize=10)
     ax.grid(alpha=0.3)
     plt.tight_layout()
@@ -412,7 +354,7 @@ def plot_confidence_vs_entropy(confidence, entropy, predictions, save_path=None)
 
     ax.set_xlabel("Confidence (max p)", fontsize=12)
     ax.set_ylabel("Predictive Entropy", fontsize=12)
-    ax.set_title("Confidence vs. Uncertainty - Messidor-2",
+    ax.set_title("Confidence vs. Uncertainty",
                  fontsize=14, fontweight="bold")
     ax.legend(fontsize=10)
     ax.grid(alpha=0.3)
@@ -456,7 +398,7 @@ def save_results_csv(results: dict, save_path: Path):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="MC Dropout uncertainty inference on Messidor-2"
+        description="MC Dropout uncertainty inference"
     )
     parser.add_argument(
         "--checkpoint", type=str, required=True,
@@ -467,11 +409,16 @@ def main():
         choices=["baseline", "cbam"],
         help="Model architecture: 'baseline' (no CBAM) or 'cbam' (default)",
     )
+    parser.add_argument(
+        "--dataset", type=str, default="messidor2",
+        choices=["messidor2", "aptos_test"],
+        help="Dataset to evaluate on: 'messidor2' or 'aptos_test'",
+    )
     parser.add_argument("--batch_size", type=int, default=BATCH_SIZE)
     parser.add_argument("--mc_passes", type=int, default=MC_INFERENCE_PASSES,
                         help="Number of stochastic forward passes T")
     parser.add_argument("--no_labels", action="store_true",
-                        help="Set if Messidor-2 CSV has no ground-truth grades")
+                        help="Set if CSV has no ground-truth grades")
     parser.add_argument("--max_images", type=int, default=None,
                         help="Limit dataset to N images (for smoke testing)")
     parser.add_argument("--ece_bins", type=int, default=15,
@@ -499,14 +446,47 @@ def main():
     print(f"Device: {device}")
 
     # ---- Dataset ----
-    print("\nLoading Messidor-2 dataset ...")
-    dataset = MessidorDataset(
-        csv_path=str(MESSIDOR_CSV),
-        image_dir=str(MESSIDOR_IMAGES),
-        transform=get_val_transform(IMAGE_SIZE),
-        preprocess=True,
-        labels_available=not args.no_labels,
-    )
+    dataset_name = args.dataset
+
+    if dataset_name == "aptos_test":
+        print("\nLoading APTOS test dataset ...")
+        aptos_df = pd.read_csv(APTOS_TEST_CSV)
+
+        use_cache = USE_PREPROCESSED_CACHE and APTOS_PROCESSED_DIR.exists()
+        cache_dir = APTOS_PROCESSED_DIR if use_cache else None
+
+        base_dataset = DRDataset(
+            df=aptos_df,
+            image_dir=str(APTOS_TEST_IMAGES),
+            transform=get_val_transform(IMAGE_SIZE),
+            preprocess=not use_cache,
+            use_cache=use_cache,
+            cache_dir=cache_dir,
+        )
+
+        class _APTOSTestWrapper(torch.utils.data.Dataset):
+            """Wraps DRDataset to return (image, label, image_id)."""
+            def __init__(self, ds, df):
+                self.ds = ds
+                self.df = df
+            def __len__(self):
+                return len(self.ds)
+            def __getitem__(self, idx):
+                image, label = self.ds[idx]
+                image_id = str(self.df.iloc[idx]["id_code"])
+                return image, label, image_id
+
+        dataset = _APTOSTestWrapper(base_dataset, aptos_df)
+        dataset.df = aptos_df
+    else:
+        print("\nLoading Messidor-2 dataset ...")
+        dataset = MessidorDataset(
+            csv_path=str(MESSIDOR_CSV),
+            image_dir=str(MESSIDOR_IMAGES),
+            transform=get_val_transform(IMAGE_SIZE),
+            preprocess=True,
+            labels_available=not args.no_labels,
+        )
 
     # Truncate for smoke testing
     if args.max_images and args.max_images < len(dataset):
@@ -521,13 +501,13 @@ def main():
         pin_memory=True,
     )
     print(f"  Images: {len(dataset)}")
-    if hasattr(dataset, 'COL_GRADABLE') and dataset.COL_GRADABLE in dataset.df.columns:
+    if dataset_name == "messidor2" and hasattr(dataset, 'COL_GRADABLE') and dataset.COL_GRADABLE in dataset.df.columns:
         print(f"  (filtered to gradable images only)")
 
     # ---- Build run tag for output file naming ----
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     n_images = len(dataset)
-    run_tag = f"{args.model}_messidor2_{timestamp}_{args.mc_passes}T_{n_images}img"
+    run_tag = f"{args.model}_{dataset_name}_{timestamp}_{args.mc_passes}T_{n_images}img"
 
     # ---- Model ----
     print(f"\nLoading {args.model.upper()} model from checkpoint ...")
@@ -580,7 +560,7 @@ def main():
             predictions=results["predictions"],
         )
         print(f"\n{'=' * 50}")
-        print("  MESSIDOR-2 EVALUATION")
+        print(f"  {dataset_name.upper()} EVALUATION")
         print(f"{'=' * 50}")
         print(f"  Accuracy:          {metrics['accuracy']:.4f}")
         print(f"  Quadratic kappa:   {metrics['quadratic_kappa']:.4f}")
@@ -598,7 +578,7 @@ def main():
                 "checkpoint": str(Path(args.checkpoint).name),
                 "checkpoint_epoch": epoch,
                 "checkpoint_best_kappa": kappa,
-                "dataset": "messidor2",
+                "dataset": dataset_name,
                 "n_images": n_images,
                 "mc_passes": args.mc_passes,
                 "batch_size": args.batch_size,

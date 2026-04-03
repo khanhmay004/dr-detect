@@ -1,49 +1,28 @@
 """
-Ben Graham's Preprocessing Pipeline for Fundus Images.
-
-The key insight from Graham's winning Kaggle solution (2015) is to subtract
-the local average color.  This removes illumination variation across the
-retina while preserving fine-grained lesion detail:
-
-    result = cv2.addWeighted(image, 4, GaussianBlur(image), -4, 128)
-
-The constant 128 re-centers pixel values to mid-gray after subtraction,
-keeping the result in a displayable [0, 255] range.
-
-Reference: https://kaggle.com/competitions/diabetic-retinopathy-detection/discussion/15801
+https://kaggle.com/competitions/diabetic-retinopathy-detection/discussion/15801
 """
 
 import cv2
 import numpy as np
 from typing import Tuple
-
 from config import IMAGE_SIZE, CROP_MARGIN, BEN_GRAHAM_SIGMA_SCALE
 
-
-# -------------------------------------------------------------------------
-# Step 1 — Circular crop (remove black borders)
-# -------------------------------------------------------------------------
+#Step 1: Circular crop (remove black borders)
 
 def find_retina_circle(image: np.ndarray) -> Tuple[int, int, int]:
     """Detect the retina's bounding circle via thresholding + contour.
-
     Returns:
         (center_x, center_y, radius)
     """
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    # Threshold at 10 — anything below is the black surround
     _, thresh = cv2.threshold(gray, 10, 255, cv2.THRESH_BINARY)
-
-    # Morphological close to fill small gaps inside the retina mask
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
     thresh = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
-
     contours, _ = cv2.findContours(
         thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
     )
 
     if not contours:
-        # Fallback: assume the whole image is the retina
         h, w = image.shape[:2]
         return (w // 2, h // 2, min(w, h) // 2)
 
@@ -57,12 +36,7 @@ def circular_crop(
     target_size: int = IMAGE_SIZE,
     margin: float = CROP_MARGIN,
 ) -> np.ndarray:
-    """Crop image to the retina bounding box + margin, then resize.
-
-    A circular mask is applied so that pixels outside the retina disc
-    are set to zero — this prevents the model from learning artifacts
-    in the camera surround.
-    """
+    """Cắt ảnh theo hộp giới hạn của võng mạc + lề, resize"""
     h, w = image.shape[:2]
     cx, cy, r = find_retina_circle(image)
 
@@ -73,16 +47,12 @@ def circular_crop(
     x2, y2 = min(w, cx + r), min(h, cy + r)
 
     cropped = image[y1:y2, x1:x2]
-
-    # Safety: if crop is degenerate, fall back to full image
     if cropped.shape[0] < 10 or cropped.shape[1] < 10:
         cropped = image
 
     resized = cv2.resize(
         cropped, (target_size, target_size), interpolation=cv2.INTER_LANCZOS4
     )
-
-    # Apply circular mask
     mask = np.zeros((target_size, target_size), dtype=np.uint8)
     center = target_size // 2
     cv2.circle(mask, (center, center), center, 255, -1)
@@ -91,25 +61,11 @@ def circular_crop(
     return resized
 
 
-# -------------------------------------------------------------------------
-# Step 2 — Local color normalization (Gaussian blur weighted addition)
-# -------------------------------------------------------------------------
-
+#Step 2: local color normalization (gaussian blur weighted addition)
 def local_color_normalization(
     image: np.ndarray,
     sigma_scale: int = BEN_GRAHAM_SIGMA_SCALE,
 ) -> np.ndarray:
-    """Ben Graham's local average color subtraction.
-
-    Formula:  result = 4 * image  -  4 * GaussianBlur(image)  +  128
-
-    The Gaussian sigma is set to ``width / sigma_scale`` (typically 30)
-    so the blur adapts to the image resolution.  The factor of 4 amplifies
-    contrast; the +128 bias keeps mid-tones centered.
-
-    This replaces CLAHE and operates on all three BGR channels
-    simultaneously, preserving color relationships.
-    """
     h, w = image.shape[:2]
     sigma = w / sigma_scale
 
@@ -119,26 +75,12 @@ def local_color_normalization(
     return result
 
 
-# -------------------------------------------------------------------------
 # Full pipeline
-# -------------------------------------------------------------------------
-
 def ben_graham_preprocess(
     image: np.ndarray,
     target_size: int = IMAGE_SIZE,
 ) -> np.ndarray:
-    """Complete Ben Graham preprocessing pipeline.
-
-    1. Circular crop — removes black borders, resizes to ``target_size``.
-    2. Local color normalization — subtracts Gaussian-blurred local mean.
-
-    Args:
-        image: BGR image loaded via ``cv2.imread``.
-        target_size: Output spatial resolution (square).
-
-    Returns:
-        Preprocessed BGR image of shape ``(target_size, target_size, 3)``.
-    """
+    """``(target_size, target_size, 3)``"""
     cropped = circular_crop(image, target_size)
     result = local_color_normalization(cropped)
     return result

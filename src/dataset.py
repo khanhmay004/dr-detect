@@ -1,20 +1,3 @@
-"""
-PyTorch Datasets and DataLoader factories for DR detection.
-
-Provides two dataset classes:
-
-1. ``DRDataset``       — APTOS 2019 (training & validation).
-   Images live in ``aptos/aptos2019-blindness-detection/train_images/``.
-   Labels come from ``train.csv`` (column ``diagnosis``, 0-4).
-
-2. ``MessidorDataset`` — Messidor-2 (external-set inference).
-   Images live in ``messidor-2/IMAGES/``.
-   Labels from ``messidor_data.csv`` (column ``adjudicated_dr_grade``).
-
-Both datasets apply Ben Graham preprocessing (circular crop + Gaussian-blur
-color normalization) before any augmentation/normalization.
-"""
-
 import cv2
 import numpy as np
 import pandas as pd
@@ -130,15 +113,6 @@ class DRDataset(Dataset):
 # =========================================================================
 
 class MessidorDataset(Dataset):
-    """PyTorch Dataset for Messidor-2 fundus images (inference only).
-
-    The Messidor-2 adjudicated grades CSV (Krause et al. 2018) uses
-    ``image_id`` and ``adjudicated_dr_grade`` columns.  Images may be
-    ``.tif``, ``.jpg``, or ``.png`` — we try all common extensions.
-
-    If ``labels_available=False``, a dummy label of ``-1`` is returned
-    (useful when running pure inference without ground truth).
-    """
 
     # Column names for the adjudicated grades CSV
     COL_IMAGE_ID = "image_id"

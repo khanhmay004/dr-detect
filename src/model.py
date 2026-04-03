@@ -1,36 +1,3 @@
-"""
-Uncertainty-Aware Attention CNN — Model Architecture.
-
-Architecture
-------------
-ResNet-50  (ImageNet-pretrained backbone)
-  └─ CBAM  injected after layer1, layer2, layer3, layer4
-  └─ Global Average Pool
-  └─ MCDropout(p=0.5)   ← always stochastic, even in eval()
-  └─ Linear(2048  →  5)
-
-Key design decisions
---------------------
-1. **CBAM placement**: Attached *after* each stage (not inside residual
-   blocks) so we don't break pretrained weight compatibility.
-   Each CBAM independently re-calibrates the feature map through
-   channel attention (what) and spatial attention (where).
-
-2. **MCDropout**: A custom ``nn.Module`` that calls
-   ``F.dropout(x, p, training=True)`` — the ``training=True`` flag is
-   *hard-coded*, so dropout stays active even when the model is in
-   ``model.eval()`` mode.  This lets BatchNorm use running stats
-   (stable predictions) while still sampling from the approximate
-   Bayesian posterior (uncertainty quantification).
-
-3. **Single-layer head**: The final classifier is intentionally minimal
-   (Dropout → Linear) to avoid adding learnable capacity that could
-   overfit on the small APTOS dataset (~3.6 k images).
-
-Reference:
-  CBAM — Woo et al., "CBAM: Convolutional Block Attention Module", ECCV 2018
-"""
-
 from contextlib import contextmanager
 from typing import Iterator
 
@@ -47,25 +14,13 @@ from config import (
 )
 
 
-# =========================================================================
+
 #  CBAM components
-# =========================================================================
 
 class ChannelAttention(nn.Module):
-    """Channel attention sub-module.
-
-    Applies average-pool  AND  max-pool over the spatial dims, feeds each
-    through a shared two-layer MLP  (C → C/r → C), then sums and sigmoids.
-
-    Args:
-        in_channels: Number of input feature channels.
-        reduction: Bottleneck reduction ratio *r*.
-    """
-
     def __init__(self, in_channels: int, reduction: int = CBAM_REDUCTION_RATIO):
         super().__init__()
         mid = max(in_channels // reduction, 1)
-        # Shared MLP implemented as two 1×1 convolutions (equivalent to Linear)
         self.mlp = nn.Sequential(
             nn.Linear(in_channels, mid, bias=False),
             nn.ReLU(inplace=True),
@@ -73,12 +28,6 @@ class ChannelAttention(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Args:
-            x: (B, C, H, W)
-        Returns:
-            Attention-weighted x, same shape.
-        """
         b, c, _, _ = x.size()
 
         # Global pools → (B, C)
@@ -95,13 +44,7 @@ class ChannelAttention(nn.Module):
 
 
 class SpatialAttention(nn.Module):
-    """Spatial attention sub-module.
-
-    Computes avg and max across the channel dim, concatenates them into a
-    2-channel map, then applies a 7×7 conv → sigmoid to produce a spatial
-    gate of shape ``(B, 1, H, W)``.
-    """
-
+    # KERNEL size = 7 ->> 3?
     def __init__(self, kernel_size: int = 7):
         super().__init__()
         padding = kernel_size // 2
@@ -117,11 +60,6 @@ class SpatialAttention(nn.Module):
 
 
 class CBAM(nn.Module):
-    """Convolutional Block Attention Module.
-
-    Sequential composition: ChannelAttention → SpatialAttention.
-    """
-
     def __init__(self, in_channels: int, reduction: int = CBAM_REDUCTION_RATIO):
         super().__init__()
         self.channel_att = ChannelAttention(in_channels, reduction)
@@ -134,21 +72,9 @@ class CBAM(nn.Module):
 
 
 # =========================================================================
-#  MC Dropout (always-on, with deterministic mode support)
-# =========================================================================
+#  MC Dropout
 
 class MCDropout(nn.Module):
-    """Dropout layer that stays active during ``model.eval()``.
-
-    Standard ``nn.Dropout`` checks ``self.training`` and becomes a no-op
-    in eval mode.  Here we hard-code ``training=True`` in the functional
-    call so the mask is always sampled — this is the key mechanism for
-    Monte-Carlo Dropout Bayesian inference.
-
-    The ``mc_active`` flag can be temporarily disabled for deterministic
-    validation during training (as opposed to MC inference at test time).
-    """
-
     def __init__(self, p: float = MC_DROPOUT_RATE):
         super().__init__()
         self.p = p
@@ -162,32 +88,8 @@ class MCDropout(nn.Module):
 
 # =========================================================================
 #  Full model
-# =========================================================================
 
 class CBAMResNet50(nn.Module):
-    """ResNet-50 + CBAM attention at every stage + MC Dropout Bayesian head.
-
-    Architecture::
-
-        Input (B, 3, 512, 512)
-          │
-          ├─ ResNet stem  (conv1 + bn1 + relu + maxpool)
-          ├─ layer1  →  CBAM(256)
-          ├─ layer2  →  CBAM(512)
-          ├─ layer3  →  CBAM(1024)
-          ├─ layer4  →  CBAM(2048)
-          │
-          ├─ AdaptiveAvgPool2d → (B, 2048)
-          ├─ MCDropout(p=0.5)          ← always-on stochastic
-          └─ Linear(2048, 5)
-
-    Args:
-        num_classes: Output logits dimension (5 for DR grading).
-        dropout_rate: MC Dropout probability.
-        pretrained: Use ImageNet-pretrained weights.
-        reduction: CBAM channel-attention reduction ratio.
-    """
-
     def __init__(
         self,
         num_classes: int = NUM_CLASSES,
@@ -201,7 +103,7 @@ class CBAMResNet50(nn.Module):
         weights = ResNet50_Weights.IMAGENET1K_V2 if pretrained else None
         backbone = models.resnet50(weights=weights)
 
-        # Extract stages (we do NOT keep backbone.fc / backbone.avgpool)
+        # extract stages ( 0 xai keep backbone.fc / backbone.avgpool)
         self.stem = nn.Sequential(
             backbone.conv1, backbone.bn1, backbone.relu, backbone.maxpool,
         )
@@ -210,19 +112,18 @@ class CBAMResNet50(nn.Module):
         self.layer3 = backbone.layer3     # out: 1024 channels
         self.layer4 = backbone.layer4     # out: 2048 channels
 
-        # --- CBAM after each stage ---
+        # cbam sau moi stage
         self.cbam1 = CBAM(256,  reduction)
         self.cbam2 = CBAM(512,  reduction)
         self.cbam3 = CBAM(1024, reduction)
         self.cbam4 = CBAM(2048, reduction)
 
-        # --- Bayesian classification head ---
+        # DROPOUT + CLASSIFIER
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.mc_dropout = MCDropout(dropout_rate)
         self.fc = nn.Linear(2048, num_classes)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Forward pass.  Returns raw logits ``(B, num_classes)``."""
         x = self.stem(x)
 
         x = self.layer1(x)
@@ -239,13 +140,13 @@ class CBAMResNet50(nn.Module):
 
         x = self.avgpool(x)
         x = torch.flatten(x, 1)           # (B, 2048)
-        x = self.mc_dropout(x)            # always stochastic
+        x = self.mc_dropout(x)            
         x = self.fc(x)                    # (B, num_classes)
         return x
 
     @contextmanager
     def deterministic_mode(self) -> Iterator[None]:
-        """Temporarily disable MC Dropout for deterministic validation."""
+        # Temporarily disable MC Dropout for deterministic val
         mc_modules = [m for m in self.modules() if isinstance(m, MCDropout)]
         for m in mc_modules:
             m.mc_active = False
@@ -256,16 +157,12 @@ class CBAMResNet50(nn.Module):
                 m.mc_active = True
 
 
-# =========================================================================
-#  Factory + smoke test
-# =========================================================================
 
 def create_model(
     num_classes: int = NUM_CLASSES,
     dropout_rate: float = MC_DROPOUT_RATE,
     pretrained: bool = True,
 ) -> CBAMResNet50:
-    """Factory function used by train.py and evaluate.py."""
     return CBAMResNet50(
         num_classes=num_classes,
         dropout_rate=dropout_rate,
@@ -273,17 +170,9 @@ def create_model(
     )
 
 
-# =========================================================================
-#  Baseline ResNet-50 without CBAM (for ablation study)
-# =========================================================================
+#  Baseline ResNet-50 
 
 class BaselineResNet50(nn.Module):
-    """Baseline ResNet-50 without CBAM attention.
-
-    Uses the same classification head (MCDropout + Linear) as CBAMResNet50
-    to ensure a fair ablation comparison. The ONLY difference between this
-    and CBAMResNet50 is the presence/absence of CBAM modules.
-    """
 
     def __init__(
         self,
@@ -338,12 +227,16 @@ def create_baseline_model(
     dropout_rate: float = MC_DROPOUT_RATE,
     pretrained: bool = True,
 ) -> BaselineResNet50:
-    """Factory function for baseline model (no CBAM)."""
     return BaselineResNet50(
         num_classes=num_classes,
         dropout_rate=dropout_rate,
         pretrained=pretrained,
     )
+
+
+
+
+
 
 
 if __name__ == "__main__":

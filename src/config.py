@@ -1,10 +1,3 @@
-"""
-Configuration module for the Uncertainty-Aware Attention CNN pipeline.
-
-Centralizes all hyperparameters, paths, and constants. Every other module
-imports from here — never hard-codes magic numbers.
-"""
-
 import random
 from pathlib import Path
 
@@ -13,25 +6,29 @@ import torch
 
 # =============================================================================
 # PATH CONFIGURATION
-# =============================================================================
 
 PROJECT_ROOT = Path(__file__).parent.parent
 
 # Dataset paths
-APTOS_DIR = PROJECT_ROOT / "aptos" / "aptos2019-blindness-detection"
+APTOS_DIR = PROJECT_ROOT / "data_split" 
 MESSIDOR_DIR = PROJECT_ROOT / "messidor-2"
 
-APTOS_TRAIN_CSV = APTOS_DIR / "train.csv"
-APTOS_TRAIN_IMAGES = APTOS_DIR / "train_images"
+APTOS_TRAIN_CSV = APTOS_DIR / "train_label.csv"
+APTOS_TRAIN_IMAGES = APTOS_DIR / "train_split"
+
+APTOS_TEST_CSV = APTOS_DIR / "test_label.csv"
+APTOS_TEST_IMAGES = APTOS_DIR / "test_split"
+
 MESSIDOR_IMAGES = MESSIDOR_DIR / "IMAGES"
-MESSIDOR_CSV = MESSIDOR_DIR / "messidor_data.csv"  # Adjudicated DR grades (Krause et al. 2018)
-# Output paths
+MESSIDOR_CSV = MESSIDOR_DIR / "messidor_data.csv"  
+
 OUTPUT_DIR = PROJECT_ROOT / "outputs"
 FIGURES_DIR = OUTPUT_DIR / "figures"
+
 PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
 APTOS_PROCESSED_DIR = PROCESSED_DIR / "aptos"
 MESSIDOR_PROCESSED_DIR = PROCESSED_DIR / "messidor2"
-USE_PREPROCESSED_CACHE = True                # load from data/processed/ if available
+USE_PREPROCESSED_CACHE = True                
 
 CHECKPOINT_DIR = OUTPUT_DIR / "checkpoints"
 LOG_DIR = OUTPUT_DIR / "logs"
@@ -39,11 +36,10 @@ RESULTS_DIR = OUTPUT_DIR / "results"
 
 # =============================================================================
 # IMAGE PREPROCESSING CONFIGURATION
-# =============================================================================
 
 IMAGE_SIZE = 512
-CROP_MARGIN = 0.05                          # extra margin around detected retina
-BEN_GRAHAM_SIGMA_SCALE = 30                 # σ = image_width / this value
+CROP_MARGIN = 0.05                         
+BEN_GRAHAM_SIGMA_SCALE = 30                 
 
 # =============================================================================
 # DATA CONFIGURATION
@@ -64,7 +60,6 @@ VALIDATION_FOLD = 0
 
 # =============================================================================
 # DATALOADER CONFIGURATION
-# =============================================================================
 
 BATCH_SIZE = 16
 NUM_WORKERS = 4
@@ -73,7 +68,6 @@ IMAGENET_STD = [0.229, 0.224, 0.225]
 
 # =============================================================================
 # MODEL CONFIGURATION
-# =============================================================================
 
 NUM_CLASSES = 5
 CBAM_REDUCTION_RATIO = 16                   # channel attention bottleneck
@@ -93,18 +87,17 @@ SCHEDULER_T_MAX = EPOCHS
 EARLY_STOPPING_PATIENCE = 5
 
 # Focal Loss
-FOCAL_GAMMA = 2.0                           # focusing parameter
-FOCAL_ALPHA = None                          # None = auto-compute from class freq
+FOCAL_GAMMA = 2.0                           
+FOCAL_ALPHA = None                          
 
 # Gradient clipping
 GRAD_CLIP_NORM = 1.0                        # max L2 norm for gradient clipping
 
 # Mixed-precision training
-USE_AMP = True                              # halves VRAM for 512×512 inputs
+USE_AMP = True                            
 
 # =============================================================================
 # EVALUATION & VISUALIZATION
-# =============================================================================
 
 BINARY_THRESHOLD = 0.5
 
@@ -119,14 +112,8 @@ DR_COLORS = {
 
 # =============================================================================
 # REPRODUCIBILITY
-# =============================================================================
 
 def seed_everything(seed: int = RANDOM_SEED) -> None:
-    """Fix all random seeds for full reproducibility.
-
-    Also sets CuDNN to deterministic mode (small perf cost, but
-    guarantees bitwise-identical results across runs).
-    """
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
@@ -136,7 +123,6 @@ def seed_everything(seed: int = RANDOM_SEED) -> None:
 
 
 def setup_directories() -> None:
-    """Create all necessary output directories."""
     for dir_path in [OUTPUT_DIR, FIGURES_DIR, PROCESSED_DIR,
                      CHECKPOINT_DIR, LOG_DIR, RESULTS_DIR]:
         dir_path.mkdir(parents=True, exist_ok=True)

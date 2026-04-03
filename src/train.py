@@ -1,23 +1,3 @@
-"""
-Training script for the Uncertainty-Aware Attention CNN.
-
-Key features
-------------
-- **Mixed-precision training** (``torch.amp``): halves VRAM for 512×512
-  inputs, enabling batch_size=16 on a single 12 GB GPU.
-- **Focal Loss** with per-class alpha weights computed from the training
-  set class frequencies — handles the severe APTOS 2019 class imbalance.
-- **AdamW + CosineAnnealingLR**: decoupled weight decay + smooth LR decay.
-- **Full reproducibility**: ``seed_everything()`` fixes Python, NumPy,
-  PyTorch, and CuDNN random states.
-
-Usage::
-
-    python train.py                         # defaults
-    python train.py --epochs 30 --lr 3e-4   # overrides
-    python train.py --resume outputs/checkpoints/best.pth
-"""
-
 import argparse
 import json
 from datetime import datetime
@@ -48,24 +28,10 @@ from dataset import get_train_val_split, create_dataloaders, DRDataset
 from loss import FocalLoss, compute_class_weights
 
 
-# =========================================================================
 #  Trainer
-# =========================================================================
+
 
 class Trainer:
-    """End-to-end training manager with AMP, early stopping, and checkpointing.
-
-    MLOps rationale
-    ---------------
-    * ``GradScaler`` + ``autocast`` are the standard AMP recipe.  They
-      keep activations in float16 during the forward/backward pass and
-      only do the optimizer step in float32, cutting peak VRAM by ~50 %.
-    * ``zero_grad(set_to_none=True)`` avoids a memset to zero — saves one
-      GPU kernel launch per step.
-    * ``pin_memory=True`` in DataLoaders enables async CPU → GPU transfers,
-      hiding data-loading latency behind compute.
-    """
-
     def __init__(
         self,
         model: nn.Module,
@@ -81,7 +47,7 @@ class Trainer:
         self.model_name = model_name
         self.grad_clip_norm = grad_clip_norm
 
-        # AMP scaler (no-op on CPU; active on CUDA when USE_AMP=True)
+        # AMP scaler chi dung tren GPU, dung de tu dong scale loss va unscale gradients
         self.scaler = torch.amp.GradScaler(
             device="cuda", enabled=(USE_AMP and device.type == "cuda")
         )
@@ -94,34 +60,30 @@ class Trainer:
         self.epochs_no_improve = 0
         self.num_epochs = EPOCHS
 
-        # Timestamp for this training run (used in checkpoint naming)
+        # Timestamp
         from datetime import datetime
         self.run_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.run_tag = f"{model_name}_{self.run_timestamp}_fold{fold}"
         self.start_time = None  # Set when fit() starts
         self.end_time = None    # Set when fit() ends
 
-        # Store hyperparameters for logging
         self.hyperparams = hyperparams or {}
 
-        # Metrics history
+        # METRICS HISTORY 
         self.history = {
             "train_loss": [], "val_loss": [],
             "train_acc": [],  "val_acc": [],
             "val_kappa": [],  "val_auc": [],
             "val_sens": [],   "val_spec": [],  # Binary referable DR metrics
             "val_f1_macro": [],  # Macro F1 across all 5 classes
-            "val_recall_per_class": [],  # Per-class recall [grade0, grade1, ..., grade4]
+            "val_recall_per_class": [],  # Per-class recal
             "val_precision_per_class": [],  # Per-class precision
             "val_f1_per_class": [],  # Per-class F1-score
         }
 
-    # -----------------------------------------------------------------
-    #  Single epoch
-    # -----------------------------------------------------------------
+  
 
     def train_epoch(self, train_loader, criterion, optimizer):
-        """Train for one epoch with AMP and gradient clipping."""
         self.model.train()
         running_loss = 0.0
         all_preds, all_labels = [], []
@@ -136,23 +98,21 @@ class Trainer:
 
             optimizer.zero_grad(set_to_none=True)
 
-            # --- AMP forward ---
             with torch.amp.autocast(
                 device_type=self.device.type, enabled=self.amp_enabled
             ):
                 logits = self.model(images)
                 loss = criterion(logits, labels)
-
-            # --- AMP backward with gradient clipping ---
             self.scaler.scale(loss).backward()
             self.scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(
                 self.model.parameters(), max_norm=self.grad_clip_norm
             )
+
+
             self.scaler.step(optimizer)
             self.scaler.update()
 
-            # --- Bookkeeping (on CPU, outside autocast) ---
             running_loss += loss.item() * images.size(0)
             preds = logits.detach().argmax(dim=1).cpu().numpy()
             all_preds.extend(preds)
@@ -164,21 +124,10 @@ class Trainer:
         epoch_acc = accuracy_score(all_labels, all_preds)
         return epoch_loss, epoch_acc
 
-    # -----------------------------------------------------------------
-    #  Validation
-    # -----------------------------------------------------------------
+    # Val
 
     @torch.no_grad()
     def validate(self, val_loader, criterion):
-        """Validate with deterministic (non-MC) inference.
-
-        Returns
-        -------
-        epoch_loss, epoch_acc, epoch_kappa, epoch_auc,
-        epoch_sens, epoch_spec,
-        per_class  : dict with keys recall, precision, f1, macro_f1
-                     each a list of 5 floats (one per DR grade).
-        """
         self.model.eval()
         running_loss = 0.0
         all_preds, all_labels, all_probs = [], [], []
@@ -218,21 +167,20 @@ class Trainer:
         binary_preds = (np.array(all_preds) >= 2).astype(int)
         binary_probs = all_probs[:, 2:].sum(axis=1)
 
-        # AUC from probability scores
+        # AUC
         try:
             epoch_auc = roc_auc_score(binary_labels, binary_probs)
         except ValueError:
             epoch_auc = 0.0
 
-        # Sensitivity & Specificity from confusion matrix
+        # Sensitivity & Specificity 
         tn, fp, fn, tp = confusion_matrix(
             binary_labels, binary_preds, labels=[0, 1]
         ).ravel()
         epoch_sens = tp / (tp + fn) if (tp + fn) > 0 else 0.0
         epoch_spec = tn / (tn + fp) if (tn + fp) > 0 else 0.0
 
-        # ---- Per-class metrics (5 DR grades) ----
-        # zero_division=0 prevents warnings when a class has 0 predictions
+        # PEr clsss
         report = classification_report(
             all_labels, all_preds,
             labels=[0, 1, 2, 3, 4],
@@ -249,12 +197,9 @@ class Trainer:
         return (epoch_loss, epoch_acc, epoch_kappa, epoch_auc,
                 epoch_sens, epoch_spec, per_class)
 
-    # -----------------------------------------------------------------
-    #  Checkpointing
-    # -----------------------------------------------------------------
+    #  Checkpoint
 
     def save_checkpoint(self, optimizer, scheduler, is_best=False):
-        """Save model + optimizer + scheduler for resume."""
         checkpoint = {
             "epoch": self.current_epoch,
             "model_state_dict": self.model.state_dict(),
@@ -270,7 +215,6 @@ class Trainer:
             "hyperparams": self.hyperparams,
         }
 
-        # Timestamped checkpoint naming: {model}_{timestamp}_fold{fold}_last.pth
         last_path = CHECKPOINT_DIR / f"{self.run_tag}_last.pth"
         torch.save(checkpoint, last_path)
 
@@ -281,7 +225,6 @@ class Trainer:
             print(f"  New best model saved (kappa = {self.best_kappa:.4f})")
 
     def load_checkpoint(self, path, optimizer=None, scheduler=None):
-        """Resume from a checkpoint."""
         ckpt = torch.load(path, map_location=self.device, weights_only=False)
         self.model.load_state_dict(ckpt["model_state_dict"])
         self.current_epoch = ckpt["epoch"] + 1           # resume from *next* epoch
@@ -298,13 +241,17 @@ class Trainer:
         print(f"  Resumed from epoch {ckpt['epoch']} "
               f"(best κ = {self.best_kappa:.4f})")
 
+
+
+
+
+
     # -----------------------------------------------------------------
     #  Full training loop
     # -----------------------------------------------------------------
 
     def fit(self, train_loader, val_loader, criterion, optimizer, scheduler,
             num_epochs=EPOCHS):
-        """Full training loop with early stopping."""
         import time
         from datetime import datetime
 
@@ -344,7 +291,7 @@ class Trainer:
             self.history["val_sens"].append(v_sens)
             self.history["val_spec"].append(v_spec)
             self.history["val_f1_macro"].append(per_class["macro_f1"])
-            # Per-class lists stored as list-of-lists (epoch × class)
+
             self.history["val_recall_per_class"].append(per_class["recall"])
             self.history["val_precision_per_class"].append(per_class["precision"])
             self.history["val_f1_per_class"].append(per_class["f1"])
@@ -389,22 +336,18 @@ class Trainer:
         self._save_run_metrics()
 
     def _save_history(self):
-        """Persist training curves as JSON for later plotting."""
         path = LOG_DIR / f"{self.run_tag}_history.json"
         with open(path, "w") as f:
             json.dump(self.history, f, indent=2)
         print(f"  History saved to {path}")
 
     def _save_run_metrics(self):
-        """Save comprehensive run metrics with hyperparameters and timing."""
         from datetime import datetime
         import time
-
-        # Calculate runtime
+    
         runtime_seconds = self.end_time - self.start_time if self.end_time else 0
         runtime_formatted = time.strftime("%H:%M:%S", time.gmtime(runtime_seconds))
 
-        # Get best metrics from history
         best_idx = self.best_epoch
         metrics = {
             "run_info": {
@@ -427,7 +370,6 @@ class Trainer:
                 "val_loss": self.history["val_loss"][best_idx] if best_idx < len(self.history["val_loss"]) else None,
                 "train_acc": self.history["train_acc"][best_idx] if best_idx < len(self.history["train_acc"]) else None,
                 "train_loss": self.history["train_loss"][best_idx] if best_idx < len(self.history["train_loss"]) else None,
-                # Per-class metrics at best epoch
                 "val_f1_macro": self.history["val_f1_macro"][best_idx] if best_idx < len(self.history["val_f1_macro"]) else None,
                 "val_f1_per_class": self.history["val_f1_per_class"][best_idx] if best_idx < len(self.history["val_f1_per_class"]) else None,
                 "val_recall_per_class": self.history["val_recall_per_class"][best_idx] if best_idx < len(self.history["val_recall_per_class"]) else None,
@@ -467,9 +409,9 @@ class Trainer:
         print(f"  Metrics saved to {metrics_path}")
 
 
-# =========================================================================
+# ================================================================================
 #  Entry point
-# =========================================================================
+
 
 def main():
     parser = argparse.ArgumentParser(description="Train DR detection model")
@@ -484,7 +426,7 @@ def main():
         type=str,
         default="cbam",
         choices=["baseline", "cbam"],
-        help="Model architecture: 'baseline' (ResNet-50) or 'cbam' (CBAM-ResNet50)"
+        help="'baseline' (ResNet-50) or 'cbam' (CBAM-ResNet50)"
     )
     parser.add_argument(
         "--config",
@@ -500,7 +442,6 @@ def main():
     )
     args = parser.parse_args()
 
-    # Load config file if provided
     if args.config:
         try:
             from configs.experiment_config import load_config
@@ -508,7 +449,6 @@ def main():
         except ImportError:
             print("Warning: Config system not available, using CLI args")
 
-    # ---- Reproducibility ----
     seed_everything(RANDOM_SEED)
     setup_directories()
 
@@ -522,12 +462,13 @@ def main():
     print("\nLoading APTOS 2019 data ...")
     df = pd.read_csv(APTOS_TRAIN_CSV)
     train_df, val_df = get_train_val_split(df, val_fold=args.fold)
+
     print(f"  Train: {len(train_df)}  |  Val: {len(val_df)}")
 
-    use_cache = args.use_cache and APTOS_PROCESSED_DIR.exists()
-    cache_dir = APTOS_PROCESSED_DIR if use_cache else None
-    if use_cache:
-        print(f"  Using preprocessed cache: {APTOS_PROCESSED_DIR}")
+    # use_cache = args.use_cache and APTOS_PROCESSED_DIR.exists()
+    # cache_dir = APTOS_PROCESSED_DIR if use_cache else None
+    # if use_cache:
+    #     print(f"  Using preprocessed cache: {APTOS_PROCESSED_DIR}")
 
     train_loader, val_loader = create_dataloaders(
         train_df, val_df, APTOS_TRAIN_IMAGES,
@@ -535,7 +476,7 @@ def main():
         use_cache=use_cache, cache_dir=cache_dir,
     )
 
-    # ---- Model Selection ----
+    # Model Selection  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!1
     print(f"\nBuilding {args.model.upper()} model ...")
     if args.model == "baseline":
         model = create_baseline_model(
@@ -555,14 +496,14 @@ def main():
     total_params = sum(p.numel() for p in model.parameters())
     print(f"  Parameters: {total_params:,}")
 
-    # ---- Loss (Focal) ----
+    # Loss focal 
     train_labels = torch.tensor(train_df["diagnosis"].values)
     alpha_weights = compute_class_weights(train_labels, NUM_CLASSES).to(device)
     print(f"  Class alpha weights: {alpha_weights.cpu().numpy().round(3)}")
 
     criterion = FocalLoss(gamma=FOCAL_GAMMA, alpha=alpha_weights)
 
-    # ---- Optimizer + Scheduler ----
+    # Optimizer + Scheduler 
     optimizer = optim.AdamW(
         model.parameters(), lr=args.lr, weight_decay=WEIGHT_DECAY
     )
@@ -570,8 +511,7 @@ def main():
         optimizer, T_max=args.epochs
     )
 
-    # ---- Trainer ----
-    # Collect hyperparameters for logging
+    # Trainer 
     hyperparams = {
         "epochs": args.epochs,
         "batch_size": args.batch_size,
