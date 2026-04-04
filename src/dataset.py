@@ -294,7 +294,7 @@ def get_train_transform(image_size: int = IMAGE_SIZE):
             translate_percent={"x": (-0.1, 0.1), "y": (-0.1, 0.1)},
             scale=(0.9, 1.1),
             rotate=(-45, 45),
-            mode=cv2.BORDER_CONSTANT,
+            border_mode=cv2.BORDER_CONSTANT,
             p=0.5,
         ),
         A.OneOf([
@@ -335,7 +335,7 @@ def _build_standard_transform(image_size: int = IMAGE_SIZE) -> A.Compose:
             translate_percent={"x": (-0.1, 0.1), "y": (-0.1, 0.1)},
             scale=(0.9, 1.1),
             rotate=(-45, 45),
-            mode=cv2.BORDER_CONSTANT,
+            border_mode=cv2.BORDER_CONSTANT,
             p=0.5,
         ),
         A.OneOf([
@@ -361,7 +361,7 @@ def _build_medium_transform(image_size: int = IMAGE_SIZE) -> A.Compose:
             translate_percent={"x": (-0.15, 0.15), "y": (-0.15, 0.15)},
             scale=(0.85, 1.15),
             rotate=(-60, 60),
-            mode=cv2.BORDER_CONSTANT,
+            border_mode=cv2.BORDER_CONSTANT,
             p=0.6,
         ),
         A.OneOf([
@@ -396,7 +396,7 @@ def _build_heavy_transform(image_size: int = IMAGE_SIZE) -> A.Compose:
             translate_percent={"x": (-0.15, 0.15), "y": (-0.15, 0.15)},
             scale=(0.85, 1.15),
             rotate=(-90, 90),
-            mode=cv2.BORDER_CONSTANT,
+            border_mode=cv2.BORDER_CONSTANT,
             p=0.7,
         ),
         A.OneOf([
@@ -417,7 +417,6 @@ def _build_heavy_transform(image_size: int = IMAGE_SIZE) -> A.Compose:
             num_holes_range=(1, 4),
             hole_height_range=(16, 48),
             hole_width_range=(16, 48),
-            fill_value=0,
             p=0.3,
         ),
         A.MotionBlur(blur_limit=(3, 7), p=0.2),
