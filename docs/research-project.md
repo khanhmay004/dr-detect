@@ -1,14 +1,11 @@
 # Research Project: Uncertainty-Aware Attention CNN for Diabetic Retinopathy Grading
-
 > **Document Role**: Single source-of-truth for the `dr-detect` project.
 > **Last Updated**: 2026-04-04 (Phase 7 improvements tested; original baseline retained)
 > **Project Type**: Bachelor's Thesis — Data Science (Deep Learning in Healthcare)
 > **Timeline**: 1 month (01/03/2026 – 31/03/2026)
-
 ---
 
 ## Table of Contents
-
 1. [Project Overview](#1-project-overview)
 2. [Problem Statement](#2-problem-statement)
 3. [Clinical Background](#3-clinical-background)
@@ -30,11 +27,8 @@
 19. [References](#19-references)
 
 ---
-
 ## 1. Project Overview
-
 **Title**: _Uncertainty-Aware Attention CNN for Diabetic Retinopathy Grading from Fundus Photographs_
-
 **Core Idea**: Combine three complementary techniques into a unified framework for 5-class DR grading:
 
 | Component              | Technique                                   | Purpose                                                       |
@@ -97,15 +91,6 @@ The field's current gap is not raw performance (Swin-L and TOViT push above 99% 
 | Cotton Wool Spots   | White fluffy patches                | Nerve fibre layer infarcts      |
 | Neovascularization  | New abnormal blood vessels          | PDR marker, high blindness risk |
 
-### 3.3. Why AI for DR Screening?
-
-- Severe shortage of ophthalmologists in developing countries.
-- AI achieves sensitivity ≥ 93% and specificity ≥ 90% (FDA meta-analysis 2025).
-- Enables scalable, cost-effective screening at primary care level.
-- Uncertainty quantification enables "human-in-the-loop" workflows where uncertain cases are referred to specialists.
-
----
-
 ## 4. Research Objectives & Contributions
 
 ### 4.1. Primary Objectives
@@ -113,15 +98,11 @@ The field's current gap is not raw performance (Swin-L and TOViT push above 99% 
 1. Build a deep learning model for 5-class DR grading on fundus images.
 2. Integrate CBAM attention to enhance lesion-relevant feature extraction.
 3. Estimate prediction uncertainty via MC Dropout for clinical decision support.
-
 ### 4.2. Secondary Objectives
-
 4. Evaluate cross-domain generalization on Messidor-2 (external dataset).
 5. Compare baseline ResNet-50 vs. CBAM-ResNet50 via controlled ablation.
 6. Analyse the relationship between uncertainty and prediction accuracy.
-
 ### 4.3. Expected Contributions
-
 1. **Integrated architecture**: CBAM + MC Dropout + Focal Loss in a unified framework — few studies combine all three.
 2. **Clinical applicability**: Per-prediction confidence scores enabling uncertainty-aware referral pathways.
 3. **Cross-domain evaluation**: APTOS → Messidor-2 generalization assessment.
@@ -129,28 +110,21 @@ The field's current gap is not raw performance (Swin-L and TOViT push above 99% 
 5. **Calibration reporting** (ECE/Brier): Addresses a gap explicitly called out by the Chopra 2025 survey.
 
 ---
-
 ## 5. Scope & Exclusions
 
 ### In Scope
-
 - Image-level 5-class DR grading (classification).
 - CNN-based architecture (ResNet-50 backbone).
 - Uncertainty quantification via MC Dropout.
 - 5-fold stratified cross-validation on APTOS 2019.
 - External validation on Messidor-2.
 - Ablation study isolating each component's contribution.
-
 ### Explicitly Excluded
-
 - **No lesion segmentation** — image-level classification only.
 - **No Vision Transformers** — focused on CNN with attention.
 - **No deployment** — research pipeline only (no web/mobile app).
 - **No federated learning** or self-supervised pre-training.
 - **No ordinal loss functions** — potential future work (see Section 13).
-
----
-
 ## 6. Literature Review & Prior Art
 
 ### 6.1. Evidence Tiers
@@ -175,8 +149,6 @@ The field's current gap is not raw performance (Swin-L and TOViT push above 99% 
 | Focal Loss        | Lin et al. (2017)       | T3   | Addresses class imbalance in detection |
 | Focal Loss for DR | Romero-Oraá (2024)      | T1   | Used with Xception for DR grading      |
 
-**Key observation**: Each component individually has T1 support. No single paper combines all three — this gap is the thesis's novel contribution.
-
 ### 6.3. Architecture Evolution in DR (2016–2025)
 
 | Era       | Dominant Approach                           | Examples                                        |
@@ -184,9 +156,7 @@ The field's current gap is not raw performance (Swin-L and TOViT push above 99% 
 | 2016–2021 | CNN backbones + ImageNet pre-training       | Inception-v3 (Gulshan), ResNet-50, EfficientNet |
 | 2022–2024 | Hybrid (CNN + attention modules)            | CBAM-CNN (MediDRNet), IDANet, dual attention    |
 | 2025+     | Full ViT, foundation models, neuro-symbolic | Swin-L, TOViT, RETFound (ViT-L/16)              |
-
 This project sits in the **2022–2024 hybrid tier** — well-supported, practically relevant, appropriate scope for a bachelor's thesis.
-
 ### 6.4. Key Benchmark Results from Literature
 
 | Paper            | Dataset    | Task    | AUC   | Accuracy | Notes                                  |
@@ -197,13 +167,11 @@ This project sits in the **2022–2024 hybrid tier** — well-supported, practic
 | IDANet 2024      | DDR        | 5-class | 0.86  | 0.85     | Dual attention, most direct comparator |
 | Romero-Oraá 2024 | Kaggle     | 5-class | —     | 83.7%    | QWK 0.78, Xception + Focal Loss        |
 | Swin-L 2025      | BRSET      | Binary  | 0.98  | 0.95     | 197M params, 8× larger than ResNet-50  |
+|                  |            |         |       |          |                                        |
 
 ### 6.5. Reproducibility Concerns
 
 Voets et al. (2019) demonstrated that reproducing Gulshan et al.'s results with public data yielded AUC drops of 4–14 points due to: (1) private curation steps, (2) per-image rather than per-patient splits, (3) label adjudication differences. This is the canonical argument for transparent evaluation protocols.
-
----
-
 ## 7. Datasets
 
 ### 7.1. APTOS 2019 Blindness Detection (Training/Validation)
@@ -228,9 +196,7 @@ Voets et al. (2019) demonstrated that reproducing Gulshan et al.'s results with 
 | 4     | Proliferative | 295   | 8.1%       |
 
 **Imbalance ratio**: 9.4:1 (grade 0 vs. grade 3). Justifies Focal Loss.
-
 **Known limitation**: No patient IDs available → per-image splits only (not per-patient). Documented as a known limitation per Voets et al. (2019).
-
 ### 7.2. Messidor-2 (External Test Set)
 
 | Property      | Value                                                                      |
@@ -244,9 +210,7 @@ Voets et al. (2019) demonstrated that reproducing Gulshan et al.'s results with 
 | Label source  | [Kaggle google-brain/messidor2-dr-grades](https://www.kaggle.com/datasets/google-brain/messidor2-dr-grades) |
 
 **Why Messidor-2**: Completely different domain from APTOS (French hospitals vs. Indian hospitals, different cameras, different patient demographics). Expected 5–15 QWK point drop due to domain shift — this is normal and a key discussion point.
-
 **Label provenance note**: The official Messidor-2 release does not include DR severity grades. This project uses adjudicated labels from Krause et al. (2018), where each image was independently graded by three US board-certified retina specialists and adjudicated to consensus. This is the standard label source used by Gulshan et al. (2016), Voets et al. (2019), and subsequent literature.
-
 ### 7.3. Data Split Strategy
 
 ```
@@ -260,12 +224,9 @@ APTOS 2019 (3,662 images)
 Messidor-2 (1,745 gradable images) → External Test Set (never used for training)
 ```
 
----
-
 ## 8. Model Architecture
 
 ### 8.1. Proposed Model: CBAM-ResNet50
-
 ```
 Input: Fundus image (B, 3, 512, 512)
          │
@@ -306,7 +267,6 @@ Input: Fundus image (B, 3, 512, 512)
     │ Linear(2048 → 5)              │ → (B, 5) logits
     └───────────────────────────────┘
 ```
-
 ### 8.2. Parameter Count
 
 | Component          | Parameters |
@@ -319,32 +279,16 @@ Input: Fundus image (B, 3, 512, 512)
 ### 8.3. CBAM Module Details
 
 **Channel Attention**: Identifies _which feature channels_ are important (e.g., lesion-detecting channels vs. background channels).
-
-```
-F ∈ R^(C×H×W) → AvgPool + MaxPool → Shared MLP (C→C/16→C) → Sigmoid → Scale F
-```
-
 **Spatial Attention**: Identifies _which spatial regions_ contain lesions.
-
-```
-F' → AvgPool_channel + MaxPool_channel → Concat → Conv7×7 → Sigmoid → Scale F'
-```
-
-**Design decision**: CBAM placed _after_ each ResNet stage (not inside residual blocks) to maintain ImageNet pre-trained weight compatibility.
-
 ### 8.4. MC Dropout Implementation
 
 Custom `MCDropout(nn.Module)` that hard-codes `training=True` in `F.dropout()`, keeping dropout active even in `model.eval()`. This allows:
-
 - BatchNorm to use running statistics (stable predictions)
 - Dropout to sample from approximate Bayesian posterior (uncertainty)
-
 Features an `mc_active` toggle and `deterministic_mode()` context manager for deterministic validation during training.
-
 ### 8.5. Baseline Model: BaselineResNet50
 
 Identical to CBAMResNet50 but **without CBAM modules**. Uses the same classification head (MCDropout + Linear) to ensure the only variable in ablation is the attention mechanism. ~23.5M parameters.
-
 ### 8.6. Comparison: Baseline vs. Proposed
 
 | Feature     | Baseline ResNet-50    | CBAM-ResNet50 (Proposed) |
@@ -355,16 +299,12 @@ Identical to CBAMResNet50 but **without CBAM modules**. Uses the same classifica
 | Loss        | Focal Loss            | Focal Loss               |
 | Parameters  | ~23.5M                | ~23.8M                   |
 
----
-
 ## 9. Training Recipe
 
 ### 9.1. Preprocessing: Ben Graham's Pipeline
 
 **Step 1 — Circular Crop**: Detect retina boundary via thresholding + contour detection, crop with 5% margin, apply circular mask, resize to 512×512.
-
 **Step 2 — Local Color Normalization**: `result = 4 × image − 4 × GaussianBlur(image, σ) + 128` where `σ = image_width / 30`. Removes illumination variation while preserving lesion detail. Processes all 3 BGR channels simultaneously (unlike CLAHE which processes per-channel).
-
 ### 9.2. Data Augmentation (Albumentations)
 
 **Training**:
@@ -380,7 +320,6 @@ Identical to CBAMResNet50 but **without CBAM modules**. Uses the same classifica
 | Normalize                        | ImageNet mean/std                | Pixel standardization  |
 
 **Validation/Inference**: Resize(512, 512) + Normalize(ImageNet mean/std) only.
-
 ### 9.3. Hyperparameters
 
 | Parameter         | Value                          | Rationale                                   |
@@ -409,16 +348,11 @@ FL(p_t) = -α_t · (1 - p_t)^γ · log(p_t)
 
 - `γ = 2.0`: Down-weights easy/well-classified examples by up to 100×.
 - `α_t`: Inverse-frequency class weights, computed per fold from training labels.
-
 ### 9.5. Training Infrastructure
-
 - **Local**: CPU smoke tests (batch_size=2, epochs=2, image_size=256).
 - **GPU**: Vast.ai cloud (RTX 3060/3070/4070, $0.15–$0.30/hr).
 - **Estimated training time**: ~3–5 hours per fold on RTX 3060/3070.
 - **Estimated total cost**: ~$5–7 for all 5 folds.
-
----
-
 ## 10. Evaluation Protocol
 
 ### 10.1. Metrics
@@ -451,23 +385,11 @@ Confidence:          max(ȳ)
 - H > 1.0 → Very uncertain → flag for human review
 
 ### 10.3. Evaluation Workflow
-
 1. **APTOS Validation**: Per-fold metrics (QWK, AUC, Acc) during training.
 2. **Cross-Fold Statistics**: Mean ± std across 5 folds → confidence intervals.
 3. **Messidor-2 External**: MC Dropout inference (T=20), full metrics + uncertainty analysis.
 4. **Ablation Study**: 4-model comparison isolating each component.
-
 ### 10.4. Ablation Design
-
-| Model                         | CBAM | Focal Loss | MC Dropout | QWK | AUC | ECE |
-| ----------------------------- | ---- | ---------- | ---------- | --- | --- | --- |
-| A. ResNet-50 + CE             | ✗    | ✗          | ✗          | —   | —   | —   |
-| B. ResNet-50 + Focal          | ✗    | ✓          | ✗          | —   | —   | —   |
-| C. CBAM-ResNet50 + Focal      | ✓    | ✓          | ✗          | —   | —   | —   |
-| D. CBAM-ResNet50 + Focal + MC | ✓    | ✓          | ✓          | —   | —   | —   |
-
-Each row adds exactly one component. Delta between adjacent rows isolates that component's contribution.
-
 ### 10.5. Visualizations Required
 
 - Training/validation loss and QWK curves (baseline vs. CBAM overlay)
@@ -482,9 +404,7 @@ Each row adds exactly one component. Delta between adjacent rows isolates that c
 - Architecture diagram
 
 ---
-
 ## 11. Current Implementation Status
-
 ### 11.1. Codebase Structure
 
 ```
@@ -512,33 +432,10 @@ docs/
 plans/
 └── 07-improve-model.md         # Detailed implementation plan with code snippets (Phase 3E)
 ```
-
 ### 11.2. Completed Work (Phase 0 + Phase 1)
 
 **Phase 0: Infrastructure Fixes** (✅ Complete)
-
-| Task                                                  | Status      | Date       |
-| ----------------------------------------------------- | ----------- | ---------- |
-| MCDropout `mc_active` toggle + `deterministic_mode()` | ✅ Complete | 2026-03-30 |
-| Gradient clipping (`GRAD_CLIP_NORM = 1.0`)            | ✅ Complete | 2026-03-30 |
-| Progress bar epoch display fix                        | ✅ Complete | 2026-03-30 |
-| BaselineResNet50 model factory                        | ✅ Complete | 2026-03-30 |
-| `--model {baseline, cbam}` CLI argument               | ✅ Complete | 2026-03-30 |
-| Experiment config system (YAML)                       | ✅ Complete | 2026-03-30 |
-| CPU smoke tests (baseline + CBAM, 2 epochs)           | ✅ Complete | 2026-03-30 |
-| Validation determinism verification                   | ✅ Complete | 2026-03-30 |
-
 **Phase 1: GPU Baseline Training** (✅ Complete — 2026-03-31)
-
-| Task                              | Status      | Details                                            |
-| --------------------------------- | ----------- | -------------------------------------------------- |
-| GPU infrastructure setup          | ✅ Complete | NVIDIA RTX 3090 (25.3GB VRAM), Vast.ai             |
-| Baseline ResNet-50 training       | ✅ Complete | Fold 0, 19 epochs, ~2.5 hours                      |
-| Training artifacts                | ✅ Complete | Checkpoints (270MB × 2), logs, metrics, 19 figures |
-| Model performance validation      | ✅ Complete | Val QWK: 0.9088, Val Acc: 84.45%                   |
-| Visualization generation          | ✅ Complete | Training curves, confusion matrix, domain analysis |
-| Training stability verification   | ✅ Complete | AMP-enabled, stable convergence, no NaN losses     |
-
 **Phase 1 Results Summary**:
 - **Best validation QWK**: 0.9088 (epoch 14) — significantly exceeds expected range (0.75-0.82)
 - **Best validation accuracy**: 84.45% (epoch 14)
@@ -547,37 +444,26 @@ plans/
 - **Artifacts location**: `dr-results/outputs/` (separate from CPU runs in `outputs/`)
 - **Key observation**: Baseline ResNet-50 achieves strong performance, setting a high bar for CBAM ablation study
 - **Messidor-2 smoke tests**: Multiple smoke tests (10 images, T=3) run successfully, validating evaluation pipeline
-
 ### 11.3. Phase 2 Progress (✅ Complete — 2026-03-31)
-
-| Task                                           | Status      | Notes |
-| ---------------------------------------------- | ----------- | ----- |
-| Messidor-2 evaluation smoke tests              | ✅ Complete | Multiple runs validated (10 img, T=3) |
-| Checkpoint wildcard path resolution            | ✅ Complete | Added to `evaluate.py` |
-| Cross-fold stats script bug identification     | ✅ Complete | Baseline fold-0-only limitation documented |
-| Messidor-2 full evaluation (baseline, T=20)    | ✅ Complete | 1,744 gradable images |
-| GPU CBAM-ResNet50 training (fold 0)            | ✅ Complete | 20 epochs, runtime ~50 min |
-| Messidor-2 full evaluation (CBAM, T=20)        | ✅ Complete | 1,744 gradable images |
-| Phase-2 artifact consolidation (`phase2-results`) | ✅ Complete | Logs, checkpoints, figures, metrics archived |
 
 ### 11.4. Pending Work (Post-Phase 7)
 
-| Task                                           | Status             | Priority | Dependencies |
-| ---------------------------------------------- | ------------------ | -------- | ------------ |
-| ECE + Brier + reliability diagram in `evaluate.py` | ✅ Implemented | Complete | Phase 3A/3B complete |
-| Referral threshold analysis (coverage-risk)    | ✅ Implemented | Complete | Phase 3C complete |
-| Full Messidor re-evaluation with calibration outputs (baseline + CBAM) | ✅ Complete | Complete | Phase 3D complete |
-| Per-class failure root-cause analysis          | ✅ Complete | Complete | Phase 3E — `docs/improve-model.md` |
-| Improvement implementation plan                | ✅ Complete | Complete | Phase 3E — `plans/07-improve-model.md` |
-| Post-hoc fixes (temperature scaling, threshold tuning) | ✅ Complete | Complete | Phase 7A — no improvement found |
-| Balanced sampler + label smoothing + deeper head | ✅ Complete | Complete | Phase 7B — **FAILED on Messidor-2** |
-| Sampler-only ablation | ✅ Complete | Complete | Phase 7B — early stopped |
-| Ordinal soft-label loss (optional)             | ⬜ Not started | Low | Deferred due to Phase 7B failure |
-| CBAM folds 1-4 training                        | ⏸ Deferred (redesign-first) | Medium     | Post-improvement retrain |
-| Cross-fold stats for CBAM (mean ± std)         | ⏸ Deferred (redesign-first) | Medium     | CBAM folds 1-4 |
-| 4-model ablation table (A–D)                   | ⏸ Deferred to post-redesign | Medium     | Updated model variants |
-| Publication-quality final figures              | ⬜ Not started     | Medium   | Core experiments complete |
-| Thesis writing integration                     | ⬜ Not started     | High     | Core experiments complete |
+| Task                                                                   | Status                      | Priority | Dependencies                           |
+| ---------------------------------------------------------------------- | --------------------------- | -------- | -------------------------------------- |
+| ECE + Brier + reliability diagram in `evaluate.py`                     | ✅ Implemented               | Complete | Phase 3A/3B complete                   |
+| Referral threshold analysis (coverage-risk)                            | ✅ Implemented               | Complete | Phase 3C complete                      |
+| Full Messidor re-evaluation with calibration outputs (baseline + CBAM) | ✅ Complete                  | Complete | Phase 3D complete                      |
+| Per-class failure root-cause analysis                                  | ✅ Complete                  | Complete | Phase 3E — `docs/improve-model.md`     |
+| Improvement implementation plan                                        | ✅ Complete                  | Complete | Phase 3E — `plans/07-improve-model.md` |
+| Post-hoc fixes (temperature scaling, threshold tuning)                 | ✅ Complete                  | Complete | Phase 7A — no improvement found        |
+| Balanced sampler + label smoothing + deeper head                       | ✅ Complete                  | Complete | Phase 7B — **FAILED on Messidor-2**    |
+| Sampler-only ablation                                                  | ✅ Complete                  | Complete | Phase 7B — early stopped               |
+| Ordinal soft-label loss (optional)                                     | ⬜ Not started               | Low      | Deferred due to Phase 7B failure       |
+| CBAM folds 1-4 training                                                | ⏸ Deferred (redesign-first) | Medium   | Post-improvement retrain               |
+| Cross-fold stats for CBAM (mean ± std)                                 | ⏸ Deferred (redesign-first) | Medium   | CBAM folds 1-4                         |
+| 4-model ablation table (A–D)                                           | ⏸ Deferred to post-redesign | Medium   | Updated model variants                 |
+| Publication-quality final figures                                      | ⬜ Not started               | Medium   | Core experiments complete              |
+| Thesis writing integration                                             | ⬜ Not started               | High     | Core experiments complete              |
 
 **Phase 2 Outcome Summary (locked for reporting):**
 1. **APTOS fold 0 (best)**:
@@ -616,20 +502,17 @@ Artifacts generated:
 - `*_referral_curve.csv` and referral curve figures
 
 ### 11.6. Phase 3E — Improvement Analysis & Planning (✅ Complete — 2026-04-03)
-
 Phase 3E focused on diagnosing why both models near-catastrophically fail on minority DR grades (1–4) and producing an actionable improvement plan.
-
 **Root-Cause Analysis** (`docs/improve-model.md`):
-
 Identified 5 structural root causes for Grade 1–4 recall collapse:
 
-| Root Cause | Description |
-| --- | --- |
-| No balanced sampling | `DataLoader` uses `shuffle=True` without `WeightedRandomSampler`; Grade 3 gets ~0.8 samples/batch |
-| Focal Loss alpha alone insufficient | Alpha reweights gradients but does not change the input distribution |
-| Grade 1 inherently ambiguous | Microaneurysm-only, single-grader APTOS noise, low inter-rater agreement |
-| Ordinal structure ignored | Predicting Grade 0 for a Grade 4 image penalised identically to predicting Grade 3 |
-| Domain shift amplification | Weaknesses on minority classes compound when distribution shifts (APTOS → Messidor-2) |
+| Root Cause                          | Description                                                                                       |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------- |
+| No balanced sampling                | `DataLoader` uses `shuffle=True` without `WeightedRandomSampler`; Grade 3 gets ~0.8 samples/batch |
+| Focal Loss alpha alone insufficient | Alpha reweights gradients but does not change the input distribution                              |
+| Grade 1 inherently ambiguous        | Microaneurysm-only, single-grader APTOS noise, low inter-rater agreement                          |
+| Ordinal structure ignored           | Predicting Grade 0 for a Grade 4 image penalised identically to predicting Grade 3                |
+| Domain shift amplification          | Weaknesses on minority classes compound when distribution shifts (APTOS → Messidor-2)             |
 
 **Per-Class Recall Snapshot (Messidor-2, Phase 3D)**:
 
@@ -643,8 +526,6 @@ Identified 5 structural root causes for Grade 1–4 recall collapse:
 
 **Implementation Plan** (`plans/07-improve-model.md`):
 
-Three-phase improvement roadmap:
-
 | Phase | Scope | Retraining? | Key Changes |
 | --- | --- | --- | --- |
 | A (Post-hoc) | Temperature scaling + threshold tuning | No | 2 new scripts + evaluate.py tweak |
@@ -652,171 +533,16 @@ Three-phase improvement roadmap:
 | C (Optional) | Ordinal soft-label loss | Yes | loss.py + 1 new YAML |
 
 All improvements designed as backward-compatible config flags (defaults preserve current behaviour). See `plans/07-improve-model.md` for full code snippets and 40+ granular TODO items.
-
 ### 11.7. Phase 7 — Improvement Implementation & Results (✅ Complete — 2026-04-03/04)
-
-Phase 7 implemented and tested the improvement plan from Phase 3E. Results revealed critical lessons about internal vs external validation.
-
-#### Phase 7A — Post-Hoc Fixes (✅ Complete)
-
-**Temperature Scaling**:
-- Optimal temperature: T=1.0321 (nearly 1.0)
-- ECE improvement: 4.88% → 4.33% (minimal)
-- **Conclusion**: Model already well-calibrated, no benefit
-
-**Threshold Tuning**:
-- Optimized thresholds: [1.0, 1.0, 1.0, 1.0, 1.0] (all unity)
-- Per-class recall improvement: ZERO
-- **Conclusion**: Decision boundaries already optimal
-
-**Phase 7A Verdict**: Post-hoc fixes cannot compensate for structural training imbalances. Phase 7B required.
-
-#### Phase 7B — Structural Improvements (✅ Complete)
-
-Three models trained on data_split (2,489 train / 623 val):
-
-| Model | Timestamp | Improvements | Epochs | Best Epoch | Runtime | Val QWK |
-|-------|-----------|--------------|--------|------------|---------|---------|
-| **Original Baseline** | 20260403_120248 | None (pre-improvement baseline) | 20 | 15 | 31m 39s | **0.9153** |
-| **Sampler-Only** | 20260403_185935 | Balanced sampler only | 8* | 3 | 20m 02s | 0.9009 |
-| **Full Improved** | 20260403_192310 | All improvements† | 25 | 18 | 51m 26s | **0.9169** |
-
-*Early stopped at epoch 8 due to overfitting.
-
-†Full improvements:
-- Balanced sampler (equal samples per class per epoch)
-- Deeper classifier head: 2048 → **512** → 5
-- Label smoothing: 0.1
-- LR warmup: 2 epochs (LinearLR → CosineAnnealingLR)
-- Reduced dropout: 0.3 (vs 0.5)
-- Extended training: 25 epochs
-
-#### Internal Validation Results (APTOS Val, N=623)
-
-| Metric | Original | Sampler-Only | Full Improved | Best |
-|--------|----------|--------------|---------------|------|
-| Accuracy | 84.43% | 80.26% | **85.07%** | Full (+0.64 pp) |
-| QWK | 0.9153 | 0.9009 | **0.9169** | Full (+0.0016) |
-| AUC | **0.9904** | 0.9839 | 0.9879 | Original |
-| Sensitivity | 0.9289 | 0.8972 | **0.9565** | Full (+2.76 pp) |
-
-**Per-Class Recall (Validation)**:
-
-| Grade | Original | Full Improved | Change |
-|-------|----------|---------------|--------|
-| 0 - No DR | 0.9805 | **0.9837** | +0.0032 |
-| 1 - Mild | **0.7302** | 0.6190 | **-0.1112** ⚠️ |
-| 2 - Moderate | 0.7412 | **0.8118** | **+0.0706** ✅ |
-| 3 - Severe | **0.7879** | 0.5152 | **-0.2727** ⚠️ **REGRESSION** |
-| 4 - Proliferative | 0.5400 | **0.6800** | **+0.1400** ✅ |
-
-#### External Evaluation — APTOS Test (N=550)
-
-| Metric | Original | Full Improved | Change |
-|--------|----------|---------------|--------|
-| Accuracy | 81.09% | **82.73%** | **+1.64 pp** ✅ |
-| QWK | 0.8959 | **0.8972** | **+0.0013** |
-| Sensitivity | 87.44% | **94.17%** | **+6.73 pp** ✅ |
-| ECE | 0.0478 | **0.0377** | **-0.0101** ✅ |
-
-**APTOS Test Verdict**: ✅ Improvements validated — better accuracy, sensitivity, and calibration.
-
-#### External Evaluation — Messidor-2 (N=1744) — **CATASTROPHIC FAILURE**
-
-| Metric | Original | Full Improved | Change |
-|--------|----------|---------------|--------|
-| Accuracy | **62.79%** | 62.44% | -0.35 pp |
-| QWK | **0.6233** | 0.4582 | **-0.1651** ❌ **-26.5% relative** |
-| Sensitivity | **43.98%** | 34.35% | **-9.63 pp** ❌ |
-| ECE | **0.1155** | 0.1601 | **+0.0446** ❌ |
-
-**Per-Class Recall (Messidor-2)**:
-
-| Grade | Original | Full Improved | Change |
-|-------|----------|---------------|--------|
-| 0 - No DR | 0.9420 | 0.9853 | +0.0433 |
-| 1 - Mild | **0.0926** | 0.0074 | **-0.0852** ❌ **CATASTROPHIC** |
-| 2 - Moderate | **0.1614** | 0.1470 | -0.0144 |
-| 3 - Severe | **0.5600** | 0.2800 | **-0.2800** ❌ **HALVED** |
-| 4 - Proliferative | **0.4000** | 0.3714 | -0.0286 |
-
-**Messidor-2 Verdict**: ❌ **CATASTROPHIC FAILURE** — QWK degraded by 26.5%, Mild DR recall dropped from 9.26% to 0.74% (92% of cases missed).
-
-#### Phase 7 Final Decision
-
-**✅ KEEP** Original Baseline (20260403_120248) as production model:
-- Better external generalization (Messidor-2 QWK: 0.6233 vs 0.4582)
-- Safer for clinical deployment
-- More conservative, less prone to catastrophic minority class failures
-
-**❌ REJECT** Full Improved Baseline:
-- Overfitted to APTOS distribution
-- Cannot generalize to Messidor-2
-- Deeper head + balanced sampling increased overfitting capacity
-- Internal validation improvements do NOT guarantee external performance
-
-#### Critical Lesson Learned
-
-**Internal validation improvements ≠ External generalization**
-
-The improved model achieved:
-- ✅ Better APTOS validation metrics
-- ✅ Better APTOS test metrics
-- ❌ **Catastrophically worse** Messidor-2 metrics
-
-Root cause: Model learned **APTOS-specific patterns** instead of generalizable DR features. Balanced sampling + deeper classifier head increased model capacity to memorize dataset artifacts.
-
-**Implication for thesis**: External validation on multiple datasets is **mandatory** before claiming model improvement. Single-dataset validation is insufficient for clinical AI.
 
 **Updated recommendation**: Future improvements must optimize for **Messidor-2 performance** as primary metric, not APTOS validation. Consider:
 - Multi-dataset training (APTOS + Messidor-2 mixed)
 - Domain adversarial training
 - Reduce model capacity (simpler head, higher dropout)
+- Ordinal soft-label loss
 - Focus on domain-agnostic features
-
 ---
-
 ## 12. Identified Issues & Fixes
-
-### Issue 1 — Validation Uses MC Dropout (Stochastic Noise)
-
-**Severity**: MEDIUM | **Status**: ✅ FIXED
-
-**Problem**: `MCDropout.forward()` hard-coded `training=True`, making validation during training non-deterministic. Best model selection could be based on a lucky dropout mask.
-
-**Fix**: Added `mc_active` toggle and `deterministic_mode()` context manager. Validation now uses deterministic mode; MC inference retains stochasticity.
-
-### Issue 2 — Missing Gradient Clipping
-
-**Severity**: LOW | **Status**: ✅ FIXED
-
-**Problem**: Focal Loss with γ=2.0 amplifies gradients on hard examples, some of which are mislabelled in APTOS.
-
-**Fix**: Added `scaler.unscale_(optimizer)` + `clip_grad_norm_(max_norm=1.0)` in training loop.
-
-### Issue 3 — Progress Bar Epoch Display
-
-**Severity**: LOW | **Status**: ✅ FIXED
-
-**Problem**: Progress bar hard-coded `EPOCHS` constant instead of actual `--epochs` argument.
-
-**Fix**: `self.num_epochs` stored in Trainer, updated in `fit()`.
-
-### Issue 4 — Baseline Used Different Hyperparameters
-
-**Severity**: MEDIUM | **Status**: ✅ FIXED
-
-**Problem**: Original baseline (from notebook) trained with batch_size=4, CPU, 5 epochs — confounds ablation comparison.
-
-**Fix**: Created `BaselineResNet50` with identical head structure. Both models use same `train.py` pipeline. Only difference: CBAM on vs. off.
-
-### Issue 5 — ECE Not Computed in evaluate.py
-
-**Severity**: HIGH (for thesis quality) | **Status**: ✅ FIXED (2026-03-31)
-
-**Problem**: `evaluate.py` originally computed accuracy, QWK, and AUC but not ECE or Brier score. Since the thesis's core claim involves uncertainty, omitting calibration metrics was a critical gap.
-
-**Fix**: Added `compute_ece()`, `compute_brier_score()`, reliability diagram generation, and referral-curve outputs to `evaluate.py`. Metrics JSON now includes `ece`, `brier_score`, and `ece_bins`.
 
 ### Issue 6 — GaussNoise API Deprecation
 
@@ -825,99 +551,34 @@ Root cause: Model learned **APTOS-specific patterns** instead of generalizable D
 **Problem**: `A.GaussNoise(var_limit=...)` API changed in Albumentations ≥ 1.4.
 
 **Fix**: Pin version in `requirements.txt` or update to `A.GaussNoise(std_range=...)`.
-
 ### Issue 7 — No Per-Patient Split
-
 **Severity**: MEDIUM (for thesis defensibility) | **Status**: ⚠️ UNFIXABLE
-
 **Problem**: APTOS 2019 does not provide patient IDs. Per-image splits may inflate metrics (Voets 2019).
-
 **Mitigation**: Document as known limitation. Messidor-2 used as unseen external test (no split needed).
-
 ### Issue 8 — Messidor-2 Label Provenance
-
 **Severity**: LOW (standard practice) | **Status**: ✅ RESOLVED
-
 **Problem**: The official Messidor-2 dataset was released without DR severity grades. Third-party labels are required for evaluation. The project originally contained `trainLabels.csv` from the Kaggle EyePACS competition (35,127 entries) — an entirely different dataset — misidentified as Messidor-2 labels.
-
 **Fix**: Replaced with adjudicated labels from Krause et al. (2018), sourced from [Kaggle google-brain/messidor2-dr-grades](https://www.kaggle.com/datasets/google-brain/messidor2-dr-grades). Dataset code updated to read `image_id` / `adjudicated_dr_grade` columns and filter ungradable images. The "ground truth" for external validation is derived from expert consensus rather than definitive clinical diagnosis — this is a common limitation across all Messidor-2 evaluation studies.
-
 ### Issue 9 — Baseline Cross-Fold Stats Structurally Impossible
 
-**Severity**: MEDIUM | **Status**: ✅ DOCUMENTED
-
-**Problem**: The `compute_cross_fold_stats.py` script supports `--model baseline_resnet50`, but baseline was only trained on fold 0 (for time/cost constraints). The script allows running with `< 2` folds (line 168: `if len(fold_metrics) < 1`), but computing mean ± std from a single fold is meaningless. Cross-validation statistics require multiple folds.
-
-**Impact**: Cannot report baseline cross-validation statistics (only single-fold performance). CBAM will have proper 5-fold CV stats for comparison.
-
-**Resolution**:
-- **Option 1** (chosen): Document limitation in thesis — baseline trained only on fold 0 for computational efficiency, direct ablation comparison uses fold 0 for both models
-- **Option 2** (time-intensive): Train baseline on all 5 folds (~12.5 hours GPU time)
-
 **Mitigation**: The ablation comparison (baseline vs. CBAM on fold 0) remains valid. CBAM's cross-validation statistics provide robustness evidence. This is an acceptable limitation for a thesis with time constraints.
-
-### Issue 10 — Checkpoint Path Inconsistencies (Timestamped vs. Non-Timestamped)
-
-**Severity**: HIGH (usability) | **Status**: ✅ FIXED (2026-03-31)
-
-**Problem**: The `train.py` script generates timestamped checkpoint names (`model_YYYYMMDD_HHMMSS_foldN_best.pth`), but documentation and commands used hardcoded non-timestamped paths. Shell glob patterns like `cbam_resnet50_*_fold0_best.pth` work in `ls` but fail when passed directly to Python's `argparse` (Python doesn't expand wildcards like the shell does). This caused `FileNotFoundError` when users copy-pasted commands from documentation.
-
-**Example failure**:
-```bash
-python src/evaluate.py --checkpoint outputs/checkpoints/cbam_resnet50_fold0_best.pth  # ❌ File doesn't exist
-# Actual file: cbam_resnet50_20260331_143052_fold0_best.pth
-```
-
-**Fix**:
-1. Added wildcard expansion logic to `evaluate.py` (imports `glob`, `os`)
-2. Added checkpoint resolution after argument parsing:
-   ```python
-   if '*' in checkpoint_path or '?' in checkpoint_path:
-       matches = sorted(glob.glob(checkpoint_path), key=os.path.getmtime, reverse=True)
-       if not matches:
-           raise FileNotFoundError(f"No checkpoint files found matching pattern: {checkpoint_path}")
-       checkpoint_path = matches[0]  # Most recent
-       print(f"Resolved checkpoint pattern to: {checkpoint_path}")
-   ```
-3. Updated all documentation to use wildcard patterns: `"outputs/checkpoints/baseline_resnet50*fold0_best.pth"`
-4. Pattern works with both old (no timestamp) and new (timestamped) checkpoint formats
-
-**Benefit**: Users can now copy-paste commands directly from documentation. The script auto-selects the most recent checkpoint when multiple matches exist.
-
----
 
 ## 13. Literature Gaps & Novel Contributions
 
 ### Gap 1 — Calibration Reporting (ECE/Brier)
 
 **Impact**: HIGH | **Effort**: LOW
-
 The Chopra 2025 survey explicitly calls out the absence of calibration metrics in DR papers. This gap is now closed in this project via bin-based ECE, Brier score, and reliability diagrams integrated into the evaluation pipeline.
-
 ### Gap 2 — Uncertainty-Aware Referral Thresholding
-
 **Impact**: HIGH | **Effort**: MEDIUM
-
 No DR paper derives a specific entropy threshold for "refer to human grader" decisions and reports sensitivity/specificity at that threshold. Implementation: compute accuracy/coverage trade-off at different entropy percentiles, identify optimal threshold (e.g., best accuracy at ≥85% coverage).
-
 ### Gap 3 — Cross-Dataset CBAM Ablation
-
 **Impact**: MEDIUM | **Effort**: LOW (already designed)
-
 No paper ablates CBAM on/off across APTOS → Messidor-2. The project design directly addresses this with baseline ResNet-50 vs. CBAM-ResNet50 evaluated on both datasets.
-
 ### Gap 4 — Ordinal Loss Functions (Planned — Phase C)
-
 **Impact**: HIGH | **Effort**: MEDIUM | **Status**: Implementation plan written (`plans/07-improve-model.md`)
-
 No reviewed paper applies ordinal regression losses (ordinal CE, CORN) to CBAM-CNN on APTOS/Messidor-2. Standard Focal Loss treats DR grades as independent classes, ignoring that grade 3 is closer to grade 4 than to grade 0. Gaussian soft-label approach designed — see Phase C of improvement plan.
-
-### Gap 5 — Balanced Sampling + Label Smoothing for DR Minority Classes (Planned — Phase B)
-
-**Impact**: HIGH | **Effort**: MEDIUM | **Status**: Implementation plan written (`plans/07-improve-model.md`)
-
-Most DR papers report only aggregate metrics (accuracy, QWK) and do not address the class-imbalance problem structurally. This project will combine `WeightedRandomSampler`, label smoothing (ε=0.1), and a deeper classifier head to directly target the Grade 1–4 recall collapse identified in Phase 3E.
-
+### Gap 5 — Balance Sampling + Label Smoothing for DR Minority Classes (Planned — Phase B)
 ---
 
 ## 14. Failure Modes & Risk Assessment
@@ -933,37 +594,20 @@ Most DR papers report only aggregate metrics (accuracy, QWK) and do not address 
 | FM5 | Grade 1–4 recall collapse (minority-class failure)    | **HIGH**   | Phase 3D per-class recall      | Balanced sampler + label smoothing + ordinal loss (Plan Phase B/C) |
 | FM6 | Single Linear(2048→5) head — no learned nonlinearity  | MEDIUM     | Architecture inspection        | Deeper classifier head with ReLU + Dropout (Plan Phase B5)     |
 
-**FM2 Detail**: MC Dropout at p=0.5 on the final Linear(2048→5) layer only masks 1,024/2,048 features per pass, but all features are identically extracted by the deterministic backbone. This produces narrow uncertainty estimates that may be poorly calibrated.
-
-**FM5 Detail**: Grade 1 recall is 4.8% on Messidor-2 (both models). The model predicts Grade 0 for 95% of Grade 1 images. Root cause is structural: no balanced sampling + Focal Loss alpha weights alone cannot overcome 49:1 class imbalance ratio (Grade 0 vs Grade 3). See `docs/improve-model.md` for full diagnosis.
-
 ### 14.2. Project Risk Assessment
 
-| Risk                                        | Probability | Impact       | Mitigation                                                     | Status          |
-| ------------------------------------------- | ----------- | ------------ | -------------------------------------------------------------- | --------------- |
-| GPU not available for full training         | ~~Medium~~  | **Blocking** | ~~Vast.ai ($5–7 total), or reduce to 1–2 folds~~               | ✅ **Resolved** |
-| CBAM shows no improvement over baseline     | Medium      | High         | Frame as negative result with ablation — still publishable     | Active risk     |
-| Messidor-2 performance very low (QWK < 0.5) | Medium      | Medium       | Expected due to domain shift — discussion point, not failure   | Active risk     |
-| MC Dropout entropy poorly calibrated        | High        | Medium       | Report ECE honestly; propose backbone-level dropout            | Active risk     |
-| Time runs out before all 5 folds            | High        | Low          | 1 fold + external validation sufficient for bachelor's         | Mitigated       |
-| Focal Loss overfits to label noise          | Low         | Medium       | Monitor per-class loss; label smoothing ablation               | Monitored       |
-| Baseline performance too strong             | **New**     | Medium       | May reduce CBAM's relative improvement; still valid comparison | Emerging risk   |
-| Per-class recall collapse (Grades 1–4)      | **Confirmed**| **High**    | Balanced sampler + label smoothing + ordinal loss (Plan B/C)   | **Active — plan written** |
+| Per-class recall collapse (Grades 1–4)      | **Confirmed** | **High**     | Balanced sampler + label smoothing + ordinal loss (Plan B/C)   | **Active — plan written** |
+| ------------------------------------------- | ------------- | ------------ | -------------------------------------------------------------- | ------------------------- |
 
 **Risk Update (2026-04-03)**: Per-class analysis (Phase 3E) confirmed near-catastrophic failure on minority grades: Grade 1 recall 4.8%, Grade 2 recall 23.6% on Messidor-2. Root cause is structural (no balanced sampling, single linear head, ordinal structure ignored) — not a hyperparameter tuning problem. Three-phase improvement plan written (`plans/07-improve-model.md`). Phase A (post-hoc) carries zero regression risk; Phase B (structural retrain) is the critical path.
 
-**Risk Update (2026-03-31)**: Baseline ResNet-50 achieved QWK 0.9088, significantly exceeding expected range (0.75-0.82). This raises the bar for CBAM-ResNet50 to demonstrate improvement. If CBAM shows minimal gains, the thesis can reframe as "validating strong baseline performance" rather than "improving via attention mechanisms."
-
 ---
-
 ## 15. Phased Implementation Plan
 
 ### Phase 0: Infrastructure Fixes — ✅ COMPLETE
 
 Fixed MCDropout deterministic validation, gradient clipping, progress bar, baseline model factory, CLI arguments, experiment config system. All CPU smoke tests passed.
-
 ### Phase 1: Baseline Retraining — ✅ COMPLETE (2026-03-31)
-
 **Completed**:
 - ✅ Trained baseline ResNet-50 (fold 0, GPU, 19 epochs, batch_size=16)
   - GPU: NVIDIA RTX 3090 (25.3GB VRAM) via Vast.ai
@@ -974,13 +618,7 @@ Fixed MCDropout deterministic validation, gradient clipping, progress bar, basel
 - ✅ Generated training artifacts (checkpoints: 270MB × 2, logs, metrics)
 - ✅ Generated 19 visualization figures (training curves, confusion matrix, domain analysis)
 - ✅ Results location: `dr-results/outputs/` (separate from CPU runs)
-
-**Pending**:
-- 🔄 Evaluate baseline on Messidor-2 (MC Dropout T=20) — smoke tests complete, ready for full run
-- ⬜ Record external validation metrics: QWK, AUC, accuracy, entropy statistics
-
 ### Phase 2: CBAM-ResNet50 Training + External Validation — ✅ COMPLETE (2026-03-31)
-
 **Completed**:
 - ✅ Full Messidor-2 evaluation for baseline (T=20)
 - ✅ Trained CBAM-ResNet50 fold 0 (20 epochs, GPU)
@@ -1005,16 +643,12 @@ Fixed MCDropout deterministic validation, gradient clipping, progress bar, basel
 - ✅ Diagnosed per-class failure on Grades 1–4 → `docs/improve-model.md`
 - ✅ Wrote detailed improvement plan with code snippets → `plans/07-improve-model.md`
 - ⏭ Next: implement improvement plan (Phase A → B → C)
-
 ### Phase 3F: Model Improvement Implementation (Planned)
-
 Three-phase improvement roadmap per `plans/07-improve-model.md`:
-
 **Phase A — Post-Hoc Fixes (no retraining)**:
 - Temperature scaling on existing logits (create `src/temperature_scaling.py`)
 - Per-class threshold tuning (create `src/threshold_tuning.py`)
 - Integrate thresholds into `evaluate.py`
-
 **Phase B — Structural Improvements (retrain fold 0)**:
 - Add 5 new config constants (`config.py`)
 - Label smoothing in `FocalLoss` (`loss.py`)
@@ -1024,7 +658,6 @@ Three-phase improvement roadmap per `plans/07-improve-model.md`:
 - New experiment config (`experiment_config.py` + YAML)
 - Wire all improvements into training loop
 - CPU smoke tests → GPU training fold 0
-
 **Phase C — Ordinal Soft Labels (optional, retrain fold 0)**:
 - Gaussian soft-label generator in `loss.py`
 - KL-divergence ordinal loss variant
@@ -1036,26 +669,15 @@ Three-phase improvement roadmap per `plans/07-improve-model.md`:
 - Train 4 model variants (A–D) on fold 0 if time permits
 - Evaluate all on APTOS val + Messidor-2
 - Fill ablation table
-
 ### Phase 5: Visualization & Figures (Days 11–12)
-
 - Training curves, confusion matrices, ROC curves
 - Uncertainty figures, architecture diagram
-
 ### Phase 6: Additional Experiments (Days 13–14, if time permits)
-
 - Ordinal loss experiment, backbone-level MC Dropout, Grad-CAM
-
 ### Phase 7: Thesis Writing (Days 15–20)
-
 - Chapters 1–6, references, appendix
-
 ### Phase 8: Final Polish (Days 21–22)
-
 - Code cleanup, README, thesis review, submission
-
----
-
 ## 16. Expected vs Actual Results
 
 ### 16.1. APTOS Validation (Fold 0)
@@ -1114,9 +736,7 @@ Three-phase improvement roadmap per `plans/07-improve-model.md`:
 | 4 - Proliferative | **0.4000** | 0.5200 | 0.3714 |
 
 **Key Finding**: All models struggle with minority classes (1-3) on external data. Balanced sampling in improved model **amplified** this failure rather than fixing it.
-
 ### 16.5. Uncertainty Metrics (Observed Patterns)
-
 - ✅ Incorrect predictions have higher entropy than correct predictions (validated across all models)
 - ✅ Confidence is lower for incorrect predictions (validated)
 - ✅ Higher-severity/ambiguous classes show higher entropy than Grade 0 (validated)
@@ -1125,12 +745,10 @@ Three-phase improvement roadmap per `plans/07-improve-model.md`:
   - Original Baseline: ECE **0.1155**, Brier **0.5231**
   - CBAM: ECE **0.1201**, Brier **0.5170**
   - Improved Baseline: ECE **0.1601** ❌, Brier **0.5645** ❌
-
 **Interpretation**: 
 - CBAM has slightly better calibration but worse discrimination
 - Improved baseline has **worse** calibration on external data despite better APTOS calibration
 - Calibration improvements do not translate to better clinical utility
-
 ### 16.6. Key Lessons from Phase 7
 
 1. **Internal validation ≠ External generalization**: APTOS improvements failed catastrophically on Messidor-2
@@ -1170,7 +788,6 @@ Three-phase improvement roadmap per `plans/07-improve-model.md`:
 5. Small dataset (~3.6K images) limits generalization claims.
 
 ---
-
 ## 18. Future Work
 
 1. **Ordinal loss functions** (CORN / ordinal CE) — respects grade ordering, may improve QWK. _(Phase C of improvement plan — ready to implement)_
@@ -1183,9 +800,7 @@ Three-phase improvement roadmap per `plans/07-improve-model.md`:
 8. **Label smoothing** — mitigate APTOS label noise. _(Phase B of improvement plan — ready to implement)_
 9. **Temperature scaling** — post-hoc calibration improvement. _(Phase A of improvement plan — ready to implement)_
 10. **Balanced sampling + deeper classifier head** — address minority-class recall collapse. _(Phase B of improvement plan — ready to implement)_
-
 ---
-
 ## 19. References
 
 ### Core Architecture & Methods
@@ -1195,7 +810,6 @@ Three-phase improvement roadmap per `plans/07-improve-model.md`:
 3. Gal, Y. & Ghahramani, Z. "Dropout as a Bayesian Approximation." ICML, 2016.
 4. Lin, T.-Y. et al. "Focal Loss for Dense Object Detection." ICCV, 2017.
 5. Graham, B. "Kaggle Diabetic Retinopathy Detection Competition, 1st Place." 2015.
-
 ### DR-Specific Studies
 
 6. Gulshan, V. et al. "Development and Validation of a Deep Learning Algorithm for Detection of DR." JAMA, 2016.
@@ -1204,7 +818,6 @@ Three-phase improvement roadmap per `plans/07-improve-model.md`:
 9. Bhati et al. "IDANet: Interpretable Dual Attention Network." Artificial Intelligence in Medicine, 2024.
 10. Romero-Oraá et al. "Attention-Based Separate Dark/Bright Structure Attention." 2024.
 11. Akram et al. "Bayesian Approaches for DR Grading." 2025.
-
 ### Surveys & Reviews
 
 12. Chopra, M. et al. "From Retinal Pixels to Patients: Evolution of Deep Learning Research in DR Screening." arXiv:2511.11065, 2025.
@@ -1213,14 +826,12 @@ Three-phase improvement roadmap per `plans/07-improve-model.md`:
 15. "Systematic Review of Regulator-Approved Deep Learning Systems for DR Screening." Nature Digital Medicine, 2025.
 16. Bappi et al. "Deep Learning-Based DR Recognition: Survey." Healthcare Analytics, 2025.
 17. "Systematic Review of Hybrid Vision Transformer Architectures." J Digit Imaging, 2025.
-
 ### Foundation Models & Advanced Methods
 
 18. Zhou et al. "RETFound: A Foundation Model for Retinal Imaging." Nature, 2023.
 19. Dai et al. "DeepDR Plus: Predicting Time to DR Progression." Nature Medicine, 2024.
 20. "DRAMA: Multi-Label Learning for DR." Acta Ophthalmologica, 2025.
 21. "Multi-Task Learning for DR Grading and Lesion Segmentation." AAAI, 2023.
-
 ### Datasets
 
 22. APTOS 2019 Blindness Detection. Kaggle Competition, 2019.
@@ -1228,20 +839,17 @@ Three-phase improvement roadmap per `plans/07-improve-model.md`:
 24. Krause, J. et al. "Grader Variability and the Importance of Reference Standards for Evaluating Machine Learning Models for Diabetic Retinopathy." Ophthalmology, vol. 125, no. 8, 2018, pp. 1264–1272.
 25. DDR Dataset. 2019.
 26. IDRiD Dataset. 2018.
-
 ### Generative & Domain Adaptation
 
 26. Kim et al. "StyleGAN for Retinal Synthesis." Nature Scientific Reports, 2022.
 27. "CCDM: Conditional Cascaded Diffusion Model." Nature Communications Medicine, 2025.
 28. Xia et al. "DECO: Domain Disentanglement." MICCAI, 2024.
-
 ### Additional
 
 29. Bhoopalan et al. "TOViT: Task-Optimized Vision Transformer." Nature Scientific Reports, 2025.
 30. Huang et al. "Lesion-Aware Contrastive Pretraining." MICCAI, 2021.
 31. Yang et al. "MAE for ViT Pretraining on DR." PLOS ONE, 2024.
 32. Matta et al. "Federated Learning for DR." Scientific Reports, 2023.
-
 ---
 
 _Document consolidates information from: `ideas/evaluate.md`, `ideas/project-overview.md`, `ideas/research.md`, `plans/02-phase1-3.md`, `plans/07-improve-model.md`, `docs/context-paper/dr-reasearch-context.md`, `docs/context-paper/essential-papers-dr-detection.md`, `docs/VASTAI_DEPLOYMENT.md`, `docs/improve-model.md`, and all source code in `src/`._
