@@ -454,6 +454,14 @@ def main():
     parser.add_argument("--dropout_rate", type=float, default=MC_DROPOUT_RATE)
     parser.add_argument("--early_stopping_patience", type=int,
                         default=EARLY_STOPPING_PATIENCE)
+    parser.add_argument(
+        "--use_aug_balanced_dataset",
+        action="store_true",
+        default=False,
+        help="Use AugmentedBalancedDataset (oversamples minority via augmentation)",
+    )
+    parser.add_argument("--aug_target_count_per_class", type=int, default=800)
+    parser.add_argument("--aug_focal_alpha_uniform", action="store_true", default=True)
     args = parser.parse_args()
 
     if args.config:
@@ -489,7 +497,14 @@ def main():
         batch_size=args.batch_size, num_workers=NUM_WORKERS,
         use_cache=use_cache, cache_dir=cache_dir,
         use_balanced_sampler=args.use_balanced_sampler,
+        use_aug_balanced_dataset=args.use_aug_balanced_dataset,
+        aug_target_count_per_class=args.aug_target_count_per_class,
     )
+    if args.use_aug_balanced_dataset:
+        print(
+            f"  AugmentedBalancedDataset active: {len(train_loader.dataset)} "
+            f"training samples (target {args.aug_target_count_per_class}/class)"
+        )
     if args.use_balanced_sampler:
         print("  Using WeightedRandomSampler for balanced class frequency")
 
@@ -515,11 +530,24 @@ def main():
     total_params = sum(p.numel() for p in model.parameters())
     print(f"  Parameters: {total_params:,}")
 
-    # Loss — conditionally disable alpha weights when balanced sampler is active
     train_labels = torch.tensor(train_df["diagnosis"].values)
-    if args.use_balanced_sampler or not args.use_class_weights:
+    use_uniform_alpha = (
+        (args.use_aug_balanced_dataset and args.aug_focal_alpha_uniform)
+        or args.use_balanced_sampler
+        or not args.use_class_weights
+    )
+    if use_uniform_alpha:
         alpha_weights = torch.ones(NUM_CLASSES, device=device)
-        print("  Alpha weights: uniform (balanced sampler or class weights disabled)")
+        reason = (
+            "AugmentedBalancedDataset + uniform flag"
+            if (args.use_aug_balanced_dataset and args.aug_focal_alpha_uniform)
+            else (
+                "WeightedRandomSampler"
+                if args.use_balanced_sampler
+                else "class weights disabled"
+            )
+        )
+        print(f"  Alpha weights: uniform [1,1,1,1,1] ({reason})")
     else:
         alpha_weights = compute_class_weights(train_labels, NUM_CLASSES).to(device)
         print(f"  Class alpha weights: {alpha_weights.cpu().numpy().round(3)}")
@@ -585,6 +613,9 @@ def main():
         "classifier_hidden_dim": args.classifier_hidden_dim,
         "lr_warmup_epochs": args.lr_warmup_epochs,
         "use_class_weights": args.use_class_weights,
+        "use_aug_balanced_dataset": args.use_aug_balanced_dataset,
+        "aug_target_count_per_class": args.aug_target_count_per_class,
+        "aug_focal_alpha_uniform": args.aug_focal_alpha_uniform,
     }
 
     trainer = Trainer(

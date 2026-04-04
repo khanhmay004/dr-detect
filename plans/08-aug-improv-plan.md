@@ -1090,28 +1090,28 @@ Add per-class recall comparison table (Run B vs Run C vs original baseline).
 
 ### Phase 0 — Infrastructure
 
-- [ ] **T0.1** `src/config.py` — Add `USE_AUG_BALANCED_DATASET`, `AUG_TARGET_COUNT_PER_CLASS`, `AUG_FOCAL_ALPHA_UNIFORM`, `AUG_GRADE_LEVEL_OVERRIDE` constants after the Plan 07 block
-- [ ] **T0.2** `src/dataset.py` — Add `import logging` to imports
-- [ ] **T0.3** `src/dataset.py` — Add `AugLevel` type alias and `DEFAULT_GRADE_TO_AUG_LEVEL` dict after existing imports
-- [ ] **T0.4** `src/dataset.py` — Add `USE_AUG_BALANCED_DATASET`, `AUG_TARGET_COUNT_PER_CLASS`, `AUG_FOCAL_ALPHA_UNIFORM`, `AUG_GRADE_LEVEL_OVERRIDE` to `from config import (...)` block
-- [ ] **T0.5** `src/dataset.py` — Add `_build_standard_transform()` factory function after `get_val_transform()`
-- [ ] **T0.6** `src/dataset.py` — Add `_build_medium_transform()` factory function
-- [ ] **T0.7** `src/dataset.py` — Add `_build_heavy_transform()` factory function
-- [ ] **T0.8** `src/dataset.py` — Add `AugmentedBalancedDataset` class with `_build_index()`, `__len__()`, `__getitem__()`
-- [ ] **T0.9** `src/dataset.py` — Update `create_dataloaders()` signature: add `use_aug_balanced_dataset` and `aug_target_count_per_class` params
-- [ ] **T0.10** `src/dataset.py` — Update `create_dataloaders()` body: add mutual-exclusion guard + `AugmentedBalancedDataset` branch
+- [x] **T0.1** `src/config.py` — Add `USE_AUG_BALANCED_DATASET`, `AUG_TARGET_COUNT_PER_CLASS`, `AUG_FOCAL_ALPHA_UNIFORM`, `AUG_GRADE_LEVEL_OVERRIDE` constants after the Plan 07 block
+- [x] **T0.2** `src/dataset.py` — Add `import logging` to imports
+- [x] **T0.3** `src/dataset.py` — Add `AugLevel` type alias and `DEFAULT_GRADE_TO_AUG_LEVEL` dict after existing imports
+- [x] **T0.4** `src/dataset.py` — Add `USE_AUG_BALANCED_DATASET`, `AUG_TARGET_COUNT_PER_CLASS`, `AUG_FOCAL_ALPHA_UNIFORM`, `AUG_GRADE_LEVEL_OVERRIDE` to `from config import (...)` block
+- [x] **T0.5** `src/dataset.py` — Add `_build_standard_transform()` factory function after `get_val_transform()`
+- [x] **T0.6** `src/dataset.py` — Add `_build_medium_transform()` factory function
+- [x] **T0.7** `src/dataset.py` — Add `_build_heavy_transform()` factory function
+- [x] **T0.8** `src/dataset.py` — Add `AugmentedBalancedDataset` class with `_build_index()`, `__len__()`, `__getitem__()`
+- [x] **T0.9** `src/dataset.py` — Update `create_dataloaders()` signature: add `use_aug_balanced_dataset` and `aug_target_count_per_class` params
+- [x] **T0.10** `src/dataset.py` — Update `create_dataloaders()` body: add mutual-exclusion guard + `AugmentedBalancedDataset` branch
 
 ### Phase 1 — Training Integration
 
-- [ ] **T1.1** `src/configs/experiment_config.py` — Add `USE_AUG_BALANCED_DATASET`, `AUG_TARGET_COUNT_PER_CLASS`, `AUG_FOCAL_ALPHA_UNIFORM` to imports from `config`
-- [ ] **T1.2** `src/configs/experiment_config.py` — Add three new fields to `ExperimentConfig` dataclass after Plan 07 fields
-- [ ] **T1.3** `src/configs/experiment_config.py` — Add three new assignments to `load_config()` function
-- [ ] **T1.4** `src/train.py` — Add `--use_aug_balanced_dataset`, `--aug_target_count_per_class`, `--aug_focal_alpha_uniform` CLI arguments to `argparse` block
-- [ ] **T1.5** `src/train.py` — Update `create_dataloaders(...)` call to pass the two new kwargs
-- [ ] **T1.6** `src/train.py` — Replace alpha weight logic: extend `if args.use_balanced_sampler ...` block with three-way `use_uniform_alpha` check
-- [ ] **T1.7** `src/train.py` — Add `use_aug_balanced_dataset`, `aug_target_count_per_class`, `aug_focal_alpha_uniform` to `hyperparams` dict
-- [ ] **T1.8** Create `src/configs/gpu_aug_balanced.yaml` (Run C config)
-- [ ] **T1.9** Create `src/configs/gpu_aug_balanced_quantity_only.yaml` (Run B config)
+- [x] **T1.1** `src/configs/experiment_config.py` — Add `USE_AUG_BALANCED_DATASET`, `AUG_TARGET_COUNT_PER_CLASS`, `AUG_FOCAL_ALPHA_UNIFORM` to imports from `config`
+- [x] **T1.2** `src/configs/experiment_config.py` — Add three new fields to `ExperimentConfig` dataclass after Plan 07 fields
+- [x] **T1.3** `src/configs/experiment_config.py` — Add three new assignments to `load_config()` function
+- [x] **T1.4** `src/train.py` — Add `--use_aug_balanced_dataset`, `--aug_target_count_per_class`, `--aug_focal_alpha_uniform` CLI arguments to `argparse` block
+- [x] **T1.5** `src/train.py` — Update `create_dataloaders(...)` call to pass the two new kwargs
+- [x] **T1.6** `src/train.py` — Replace alpha weight logic: extend `if args.use_balanced_sampler ...` block with three-way `use_uniform_alpha` check
+- [x] **T1.7** `src/train.py` — Add `use_aug_balanced_dataset`, `aug_target_count_per_class`, `aug_focal_alpha_uniform` to `hyperparams` dict
+- [x] **T1.8** Create `src/configs/gpu_aug_balanced.yaml` (Run C config)
+- [x] **T1.9** Create `src/configs/gpu_aug_balanced_quantity_only.yaml` (Run B config)
 
 ### Phase 2 — Validation
 
@@ -1157,3 +1157,337 @@ Add per-class recall comparison table (Run B vs Run C vs original baseline).
 | `src/configs/gpu_aug_balanced_quantity_only.yaml` | New | Run B experiment config |
 
 **Unchanged**: `model.py`, `loss.py`, `evaluate.py`, `preprocessing.py`, `temperature_scaling.py`, `threshold_tuning.py`. Validation and Messidor-2 inference paths are completely unaffected.
+
+---
+
+## Quick Reference: Terminal Commands (Phase 2 & 3)
+
+> Copy-paste ready. All commands assume the repo root is your CWD unless noted.
+> Replace `<checkpoint>` placeholders with actual filenames after training.
+
+---
+
+### Phase 2 — Validation (Local / CPU)
+
+#### 2.1 — CPU Smoke Test (CLI flags)
+
+```bash
+cd src
+python train.py ^
+  --model baseline ^
+  --epochs 2 ^
+  --batch_size 2 ^
+  --fold 0 ^
+  --use_aug_balanced_dataset ^
+  --aug_target_count_per_class 800 ^
+  --aug_focal_alpha_uniform ^
+  --label_smoothing 0.1 ^
+  --use_class_weights
+```
+
+**Expected output (key lines):**
+
+```
+  AugmentedBalancedDataset active: 4644 training samples (target 800 per class)
+  Alpha weights: uniform [1,1,1,1,1] (AugmentedBalancedDataset + uniform flag)
+  Epoch 1/2
+    Train — loss: ~2.xx  acc: ~0.xx
+    Val   — loss: ~1.xx  acc: ~0.xx
+  Epoch 2/2
+    Train — loss: ~1.xx  acc: ~0.xx
+    Val   — loss: ~1.xx  acc: ~0.xx
+```
+
+**What to verify:**
+- Dataset size is **~4,644** (not original ~2,929).
+- Alpha line reads **uniform [1,1,1,1,1]**, not inverse-frequency.
+- No import errors, no crash. Loss decreases from epoch 1 to 2.
+
+---
+
+#### 2.1b — CPU Smoke Test (YAML config)
+
+```bash
+cd src
+python train.py --config configs/gpu_aug_balanced.yaml --epochs 2 --batch_size 2
+```
+
+**Expected**: Identical behaviour to 2.1 above.
+
+---
+
+#### 2.2 — Dataset Count Verification
+
+```bash
+cd src
+python -c "
+import sys, pandas as pd
+sys.path.insert(0, '.')
+from dataset import AugmentedBalancedDataset
+from collections import Counter
+
+df = pd.read_csv('../data_split/train_label.csv')
+ds = AugmentedBalancedDataset(df=df, image_dir='../data_split/train_split', target_count_per_class=800, preprocess=False)
+counts = Counter(grade for _, grade in ds._index)
+for g in range(5):
+    status = 'PASS' if counts[g] >= 800 else 'FAIL'
+    print(f'  Grade {g}: {counts[g]:>5} samples  [{status}]')
+print(f'  Total: {len(ds)} samples')
+"
+```
+
+**Expected output:**
+
+```
+  Grade 0: 1805 samples  [PASS]    <- original count, already > 800
+  Grade 1:  800 samples  [PASS]    <- padded up from ~370
+  Grade 2:  999 samples  [PASS]    <- original count, already > 800
+  Grade 3:  800 samples  [PASS]    <- padded up from ~193
+  Grade 4:  800 samples  [PASS]    <- padded up from ~295
+  Total: 5204 samples
+```
+
+> Exact counts depend on the fold split. Key check: every grade >= 800.
+
+---
+
+#### 2.3 — Mutual Exclusion Guard
+
+```bash
+cd src
+python -c "
+import sys, pandas as pd
+sys.path.insert(0, '.')
+from dataset import create_dataloaders
+
+try:
+    create_dataloaders(
+        pd.DataFrame({'id_code':['x'],'diagnosis':[0]}),
+        pd.DataFrame({'id_code':['y'],'diagnosis':[0]}),
+        '.',
+        use_aug_balanced_dataset=True,
+        use_balanced_sampler=True,
+    )
+    print('FAIL: no error raised')
+except ValueError as e:
+    print(f'PASS: {e}')
+"
+```
+
+**Expected output:**
+
+```
+PASS: use_aug_balanced_dataset and use_balanced_sampler are mutually exclusive.
+```
+
+---
+
+#### 2.4 — Visual Augmentation Check
+
+```bash
+cd src
+python -c "
+import sys, pandas as pd, numpy as np, matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+sys.path.insert(0, '.')
+from dataset import AugmentedBalancedDataset
+
+df = pd.read_csv('../data_split/train_label.csv')
+grade1_df = df[df['diagnosis'] == 1].head(1)
+repeated_df = pd.concat([grade1_df] * 6, ignore_index=True)
+ds = AugmentedBalancedDataset(df=repeated_df, image_dir='../data_split/train_split', target_count_per_class=1, preprocess=True)
+
+mean, std = np.array([0.485,0.456,0.406]), np.array([0.229,0.224,0.225])
+fig, axes = plt.subplots(2, 3, figsize=(12, 8))
+for i, ax in enumerate(axes.flat):
+    img, label = ds[i]
+    img = np.clip(img.permute(1,2,0).numpy() * std + mean, 0, 1)
+    ax.imshow(img); ax.set_title(f'Copy {i+1}'); ax.axis('off')
+plt.suptitle('Grade 1 — 6 augmented copies (should all look different)')
+plt.tight_layout()
+plt.savefig('../outputs/figures/grade1_aug_check.png', dpi=100)
+print('Saved: outputs/figures/grade1_aug_check.png')
+"
+```
+
+**Expected**: File saved. Open `outputs/figures/grade1_aug_check.png` — all 6 tiles must look **visually distinct** (different rotation, color shift, possible elastic warp). If they look identical, the stochastic transform is not firing.
+
+---
+
+### Phase 3 — GPU Experiments (Remote Instance)
+
+> All GPU commands assume you have already deployed the codebase to the instance
+> and activated the conda/venv environment.
+
+#### 3.1 — Run B: Quantity-Only Ablation
+
+**Step 1 — Temporary code change** (force all grades to standard augmentation):
+
+```bash
+cd src
+# Add one-line override in AugmentedBalancedDataset.__init__
+# After: self.grade_to_aug_level = grade_to_aug_level or DEFAULT_GRADE_TO_AUG_LEVEL
+# Add:   self.grade_to_aug_level = {g: "standard" for g in range(5)}
+```
+
+**Step 2 — Train:**
+
+```bash
+cd src
+python train.py \
+  --config configs/gpu_aug_balanced_quantity_only.yaml \
+  --fold 0
+```
+
+**Expected training output:**
+
+```
+  AugmentedBalancedDataset active: ~4644 training samples (target 800 per class)
+  Alpha weights: uniform [1,1,1,1,1] (AugmentedBalancedDataset + uniform flag)
+  Epoch 1/25
+    Train — loss: ~1.2x  acc: ~0.4x
+  ...
+  Epoch 15-20/25    <- likely convergence / early stop
+    Train — loss: ~0.6x  acc: ~0.7x
+    Val   — loss: ~0.7x  acc: ~0.6x  QWK: ~0.8x
+  Early stopping at epoch XX
+```
+
+**Step 3 — Evaluate on Messidor-2:**
+
+```bash
+python evaluate.py \
+  --checkpoint outputs/checkpoints/<run_b_best_checkpoint>.pth \
+  --dataset messidor \
+  --mc_passes 20 \
+  --output_tag aug_run_b
+```
+
+**Expected results (Run B targets):**
+
+```
+  Messidor-2 QWK:            > 0.55   (any improvement over Phase 7B's 0.4582)
+  Messidor-2 Grade 0 Recall: >= 0.85  (GUARD RAIL — must not drop below)
+  Messidor-2 Grade 1 Recall: > 0.093  (baseline was 9.3%)
+  Messidor-2 Grade 2 Recall: > 0.161  (baseline was 16.1%)
+```
+
+**Decision gate:**
+
+| Condition | Action |
+|-----------|--------|
+| Grade 0 recall < 85% | Lower `aug_target_count_per_class` to 600, re-run |
+| Grade 1 recall > 9.3% AND Grade 0 >= 85% | Quantity effect confirmed, proceed to Run C |
+| Grade 1 recall <= 9.3% | Quantity alone insufficient; still proceed to Run C (class-conditional transforms may help) |
+
+---
+
+#### 3.2 — Run C: Full Plan (Class-Conditional Transforms)
+
+**Step 1 — Revert the Run B override:**
+
+```bash
+cd src
+# Remove the temporary line:  self.grade_to_aug_level = {g: "standard" for g in range(5)}
+# So that DEFAULT_GRADE_TO_AUG_LEVEL takes effect:
+#   Grade 0 -> standard, Grade 1 -> heavy, Grade 2 -> heavy,
+#   Grade 3 -> medium,   Grade 4 -> medium
+```
+
+**Step 2 — Train:**
+
+```bash
+cd src
+python train.py \
+  --config configs/gpu_aug_balanced.yaml \
+  --fold 0
+```
+
+**Expected training output:**
+
+```
+  AugmentedBalancedDataset active: ~4644 training samples (target 800 per class)
+  Alpha weights: uniform [1,1,1,1,1] (AugmentedBalancedDataset + uniform flag)
+  Epoch 1/25
+    Train — loss: ~1.3x  acc: ~0.4x     <- slightly higher initial loss (heavier augmentation)
+  ...
+  Epoch 18-22/25
+    Train — loss: ~0.7x  acc: ~0.6x     <- slower convergence than Run B (expected)
+    Val   — loss: ~0.7x  acc: ~0.6x  QWK: ~0.85+
+  Early stopping at epoch XX
+```
+
+**Step 3 — Evaluate on Messidor-2:**
+
+```bash
+python evaluate.py \
+  --checkpoint outputs/checkpoints/<run_c_best_checkpoint>.pth \
+  --dataset messidor \
+  --mc_passes 20 \
+  --output_tag aug_run_c
+```
+
+**Expected results (Run C success criteria):**
+
+| Metric | Pass Threshold | Notes |
+|--------|---------------|-------|
+| Messidor-2 QWK | > 0.6233 | Must beat original baseline |
+| Messidor-2 Grade 0 Recall | >= 0.85 | Guard rail |
+| Messidor-2 Grade 1 Recall | > 0.093 | Worst class, primary target |
+| Messidor-2 Grade 2 Recall | > 0.161 | Second worst class |
+| Messidor-2 Grade 3 Recall | >= 0.50 | Should not regress from 0.56 |
+| Messidor-2 Grade 4 Recall | >= 0.35 | Should not regress from 0.40 |
+| APTOS Val QWK | >= 0.85 | No catastrophic APTOS collapse |
+
+**Decision gate:**
+
+| Condition | Action |
+|-----------|--------|
+| All metrics pass | Plan 08 is a success — proceed to multi-fold (3.4) |
+| Grade 0 recall < 85% | Lower `aug_target_count_per_class` to 600, re-run |
+| QWK < 0.6233 but Grade 1/2 recall improved | Partial success — document as improvement in minority recall |
+| All metrics worse than baseline | Plan 08 approach is not viable — revisit design |
+
+---
+
+#### 3.3 — Build Comparison Table
+
+```bash
+cd src
+python -c "
+# After both runs, fill in the actual numbers
+header = '| Metric                    | Original Baseline | Run B (qty only) | Run C (full plan) |'
+sep    = '|---------------------------|-------------------|------------------|-------------------|'
+rows = [
+    '| Messidor-2 QWK            | 0.6233            |                  |                   |',
+    '| Messidor-2 Accuracy       | 0.6279            |                  |                   |',
+    '| Messidor-2 Grade 0 Recall | 0.942             |                  |                   |',
+    '| Messidor-2 Grade 1 Recall | 0.093             |                  |                   |',
+    '| Messidor-2 Grade 2 Recall | 0.161             |                  |                   |',
+    '| Messidor-2 Grade 3 Recall | 0.560             |                  |                   |',
+    '| Messidor-2 Grade 4 Recall | 0.400             |                  |                   |',
+    '| APTOS Val QWK             | 0.9153            |                  |                   |',
+    '| APTOS Val Macro F1        | 0.7326            |                  |                   |',
+    '| Messidor-2 ECE            | 0.1155            |                  |                   |',
+]
+print(header); print(sep)
+for r in rows: print(r)
+"
+```
+
+---
+
+#### 3.4 — Multi-Fold Training (Conditional)
+
+> Only if Run C passes all success criteria.
+
+```bash
+cd src
+for fold in 1 2 3 4; do
+  echo "=== Training fold $fold ==="
+  python train.py --config configs/gpu_aug_balanced.yaml --fold $fold
+done
+```
+
+**Expected**: Each fold trains ~18-22 epochs before early stopping. Final APTOS Val QWK per fold should be >= 0.85.

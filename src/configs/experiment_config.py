@@ -12,6 +12,8 @@ from config import (
     RANDOM_SEED, N_FOLDS, EARLY_STOPPING_PATIENCE,
     LABEL_SMOOTHING, USE_BALANCED_SAMPLER, CLASSIFIER_HIDDEN_DIM,
     CLASSIFIER_DROPOUT_RATE, LR_WARMUP_EPOCHS,
+    USE_AUG_BALANCED_DATASET, AUG_TARGET_COUNT_PER_CLASS,
+    AUG_FOCAL_ALPHA_UNIFORM,
 )
 
 
@@ -42,6 +44,11 @@ class ExperimentConfig:
     classifier_hidden_dim: int = CLASSIFIER_HIDDEN_DIM
     classifier_dropout_rate: float = CLASSIFIER_DROPOUT_RATE
     lr_warmup_epochs: int = LR_WARMUP_EPOCHS
+
+    # Plan 08 augmentation-based balancing
+    use_aug_balanced_dataset: bool = USE_AUG_BALANCED_DATASET
+    aug_target_count_per_class: int = AUG_TARGET_COUNT_PER_CLASS
+    aug_focal_alpha_uniform: bool = AUG_FOCAL_ALPHA_UNIFORM
 
     image_size: int = IMAGE_SIZE
     num_workers: int = NUM_WORKERS
@@ -148,5 +155,10 @@ def load_config(config_path: str, cli_args: Any) -> Any:
     cli_args.use_class_weights = config.use_class_weights
     cli_args.dropout_rate = config.dropout_rate
     cli_args.early_stopping_patience = config.early_stopping_patience
+
+    # Plan 08 additions
+    cli_args.use_aug_balanced_dataset = config.use_aug_balanced_dataset
+    cli_args.aug_target_count_per_class = config.aug_target_count_per_class
+    cli_args.aug_focal_alpha_uniform = config.aug_focal_alpha_uniform
 
     return cli_args

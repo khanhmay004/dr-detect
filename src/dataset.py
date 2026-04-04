@@ -1,9 +1,12 @@
+import logging
+from collections import Counter
+from typing import Literal, Tuple
+
 import cv2
 import numpy as np
 import pandas as pd
 import torch
 from pathlib import Path
-from typing import Tuple
 
 from torch.utils.data import Dataset, DataLoader
 from sklearn.model_selection import StratifiedKFold
@@ -22,8 +25,25 @@ from config import (
     BATCH_SIZE, NUM_WORKERS, RANDOM_SEED, N_FOLDS,
     APTOS_PROCESSED_DIR, MESSIDOR_PROCESSED_DIR, USE_PREPROCESSED_CACHE,
     NUM_CLASSES,
+    USE_AUG_BALANCED_DATASET, AUG_TARGET_COUNT_PER_CLASS,
+    AUG_FOCAL_ALPHA_UNIFORM, AUG_GRADE_LEVEL_OVERRIDE,
 )
 from preprocessing import ben_graham_preprocess
+
+
+# =========================================================================
+#  Class-conditional augmentation types (Plan 08)
+# =========================================================================
+
+AugLevel = Literal["standard", "medium", "heavy"]
+
+DEFAULT_GRADE_TO_AUG_LEVEL: dict[int, AugLevel] = {
+    0: "standard",   # 94.2% Messidor-2 recall — well-classified
+    1: "heavy",      #  9.3% recall — worst performer
+    2: "heavy",      # 16.1% recall — referable class, critical
+    3: "medium",     # 56.0% recall — moderate failure
+    4: "medium",     # 40.0% recall — significant failure
+}
 
 
 # =========================================================================
@@ -301,6 +321,239 @@ def get_val_transform(image_size: int = IMAGE_SIZE):
 
 
 # =========================================================================
+#  Class-conditional augmentation transform factories (Plan 08)
+# =========================================================================
+
+def _build_standard_transform(image_size: int = IMAGE_SIZE) -> A.Compose:
+    """Standard augmentation — identical to get_train_transform(). For Grade 0."""
+    return A.Compose([
+        A.Resize(image_size, image_size),
+        A.HorizontalFlip(p=0.5),
+        A.VerticalFlip(p=0.5),
+        A.RandomRotate90(p=0.5),
+        A.Affine(
+            translate_percent={"x": (-0.1, 0.1), "y": (-0.1, 0.1)},
+            scale=(0.9, 1.1),
+            rotate=(-45, 45),
+            mode=cv2.BORDER_CONSTANT,
+            p=0.5,
+        ),
+        A.OneOf([
+            A.RandomBrightnessContrast(
+                brightness_limit=0.2, contrast_limit=0.2, p=1.0
+            ),
+            A.CLAHE(clip_limit=2.0, p=1.0),
+        ], p=0.3),
+        A.GaussNoise(std_range=(0.04, 0.20), p=0.2),
+        A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+        ToTensorV2(),
+    ])
+
+
+def _build_medium_transform(image_size: int = IMAGE_SIZE) -> A.Compose:
+    """Medium augmentation — for Grades 3 and 4. Adds colour-domain transforms."""
+    return A.Compose([
+        A.Resize(image_size, image_size),
+        A.HorizontalFlip(p=0.5),
+        A.VerticalFlip(p=0.5),
+        A.RandomRotate90(p=0.5),
+        A.Affine(
+            translate_percent={"x": (-0.15, 0.15), "y": (-0.15, 0.15)},
+            scale=(0.85, 1.15),
+            rotate=(-60, 60),
+            mode=cv2.BORDER_CONSTANT,
+            p=0.6,
+        ),
+        A.OneOf([
+            A.RandomBrightnessContrast(
+                brightness_limit=0.3, contrast_limit=0.3, p=1.0
+            ),
+            A.CLAHE(clip_limit=4.0, p=1.0),
+            A.RandomGamma(gamma_limit=(70, 130), p=1.0),
+        ], p=0.5),
+        A.HueSaturationValue(
+            hue_shift_limit=10, sat_shift_limit=20, val_shift_limit=20, p=0.4,
+        ),
+        A.GaussNoise(std_range=(0.04, 0.25), p=0.3),
+        A.ImageCompression(quality_range=(75, 100), p=0.2),
+        A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+        ToTensorV2(),
+    ])
+
+
+def _build_heavy_transform(image_size: int = IMAGE_SIZE) -> A.Compose:
+    """Heavy augmentation — for Grades 1 and 2 (worst-performing classes).
+
+    Aggressive pipeline targeting cross-domain invariance: elastic distortion,
+    CoarseDropout, MotionBlur, strong colour manipulation.
+    """
+    return A.Compose([
+        A.Resize(image_size, image_size),
+        A.HorizontalFlip(p=0.5),
+        A.VerticalFlip(p=0.5),
+        A.RandomRotate90(p=0.5),
+        A.Affine(
+            translate_percent={"x": (-0.15, 0.15), "y": (-0.15, 0.15)},
+            scale=(0.85, 1.15),
+            rotate=(-90, 90),
+            mode=cv2.BORDER_CONSTANT,
+            p=0.7,
+        ),
+        A.OneOf([
+            A.ElasticTransform(alpha=1.0, sigma=50.0, p=1.0),
+            A.GridDistortion(num_steps=5, distort_limit=0.3, p=1.0),
+        ], p=0.3),
+        A.OneOf([
+            A.RandomBrightnessContrast(
+                brightness_limit=0.4, contrast_limit=0.4, p=1.0
+            ),
+            A.CLAHE(clip_limit=6.0, p=1.0),
+            A.RandomGamma(gamma_limit=(60, 140), p=1.0),
+        ], p=0.6),
+        A.HueSaturationValue(
+            hue_shift_limit=15, sat_shift_limit=30, val_shift_limit=30, p=0.5,
+        ),
+        A.CoarseDropout(
+            num_holes_range=(1, 4),
+            hole_height_range=(16, 48),
+            hole_width_range=(16, 48),
+            fill_value=0,
+            p=0.3,
+        ),
+        A.MotionBlur(blur_limit=(3, 7), p=0.2),
+        A.GaussNoise(std_range=(0.04, 0.30), p=0.4),
+        A.ImageCompression(quality_range=(65, 95), p=0.3),
+        A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
+        ToTensorV2(),
+    ])
+
+
+# =========================================================================
+#  AugmentedBalancedDataset (Plan 08)
+# =========================================================================
+
+class AugmentedBalancedDataset(Dataset):
+    """Training dataset that oversamples minority classes via augmentation.
+
+    Builds an expanded sample index so each class reaches
+    ``target_count_per_class``. Each oversampled repetition receives a freshly
+    sampled stochastic augmentation — visually distinct from the source.
+
+    Args:
+        df: Training DataFrame with ``id_code`` and ``diagnosis`` columns.
+        image_dir: Directory containing ``.png`` fundus images.
+        target_count_per_class: Minimum samples per class after expansion.
+        grade_to_aug_level: Grade → augmentation intensity mapping.
+        image_size: Target spatial resolution.
+        preprocess: Apply Ben Graham preprocessing.
+        use_cache: Load from preprocessed cache.
+        cache_dir: Path to cache directory.
+    """
+
+    def __init__(
+        self,
+        df: pd.DataFrame,
+        image_dir: str,
+        target_count_per_class: int = AUG_TARGET_COUNT_PER_CLASS,
+        grade_to_aug_level: dict[int, AugLevel] | None = None,
+        image_size: int = IMAGE_SIZE,
+        preprocess: bool = True,
+        use_cache: bool = False,
+        cache_dir: Path | None = None,
+    ) -> None:
+        self.df = df.reset_index(drop=True)
+        self.image_dir = Path(image_dir)
+        self.grade_to_aug_level = grade_to_aug_level or DEFAULT_GRADE_TO_AUG_LEVEL
+        self.image_size = image_size
+        self.preprocess = preprocess
+        self.use_cache = use_cache
+        self.cache_dir = cache_dir
+
+        self._transforms: dict[AugLevel, A.Compose] = {
+            "standard": _build_standard_transform(image_size),
+            "medium":   _build_medium_transform(image_size),
+            "heavy":    _build_heavy_transform(image_size),
+        }
+
+        self._index: list[tuple[int, int]] = self._build_index(
+            target_count_per_class
+        )
+
+        expanded_counts = Counter(grade for _, grade in self._index)
+        original_counts = df["diagnosis"].value_counts().sort_index().to_dict()
+        logging.info(
+            "AugmentedBalancedDataset: index built (target=%d). "
+            "Per-class original→expanded: %s",
+            target_count_per_class,
+            {
+                g: f"{original_counts.get(g, 0)}→{expanded_counts.get(g, 0)}"
+                for g in range(NUM_CLASSES)
+            },
+        )
+
+    def _build_index(self, target_count: int) -> list[tuple[int, int]]:
+        """Build expanded (row_index, grade) list, cycling minority classes."""
+        index: list[tuple[int, int]] = []
+        for grade in range(NUM_CLASSES):
+            grade_row_indices = self.df[
+                self.df["diagnosis"] == grade
+            ].index.tolist()
+
+            n_source = len(grade_row_indices)
+            if n_source == 0:
+                logging.warning("Grade %d has 0 samples — skipped.", grade)
+                continue
+
+            n_target = max(n_source, target_count)
+
+            for row_idx in grade_row_indices:
+                index.append((row_idx, grade))
+
+            n_needed = n_target - n_source
+            for i in range(n_needed):
+                row_idx = grade_row_indices[i % n_source]
+                index.append((row_idx, grade))
+
+        return index
+
+    def __len__(self) -> int:
+        return len(self._index)
+
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, int]:
+        row_idx, grade = self._index[idx]
+        row = self.df.iloc[row_idx]
+        image_id = str(row["id_code"])
+
+        cached_path = (
+            self.cache_dir / f"{image_id}.png" if self.cache_dir else None
+        )
+        if self.use_cache and cached_path is not None and cached_path.exists():
+            image = cv2.imread(str(cached_path))
+            if image is None:
+                logging.error("Failed to load cached image: %s", cached_path)
+                raise ValueError(f"Failed to load cached image: {cached_path}")
+        else:
+            img_path = self.image_dir / f"{image_id}.png"
+            if not img_path.exists():
+                logging.error("Image not found: %s", img_path)
+                raise FileNotFoundError(f"Image not found: {img_path}")
+            image = cv2.imread(str(img_path))
+            if image is None:
+                raise ValueError(f"Failed to load: {img_path}")
+            if self.preprocess:
+                image = ben_graham_preprocess(image, self.image_size)
+
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        aug_level: AugLevel = self.grade_to_aug_level.get(grade, "standard")
+        transform = self._transforms[aug_level]
+        augmented = transform(image=image)
+        image_tensor: torch.Tensor = augmented["image"]  # [C, H, W]
+
+        return image_tensor, grade
+
+
+# =========================================================================
 #  Train / Val split
 # =========================================================================
 
@@ -374,6 +627,8 @@ def create_dataloaders(
     use_cache: bool = False,
     cache_dir: Path | None = None,
     use_balanced_sampler: bool = False,
+    use_aug_balanced_dataset: bool = False,
+    aug_target_count_per_class: int = AUG_TARGET_COUNT_PER_CLASS,
 ) -> Tuple[DataLoader, DataLoader]:
     """Create paired train/val DataLoaders for APTOS.
 
@@ -388,17 +643,45 @@ def create_dataloaders(
         use_cache: Load from preprocessed cache.
         cache_dir: Cache directory path.
         use_balanced_sampler: Use WeightedRandomSampler to equalise class
-            frequency. Mutually exclusive with shuffle.
+            frequency. Mutually exclusive with use_aug_balanced_dataset.
+        use_aug_balanced_dataset: Use AugmentedBalancedDataset for training —
+            oversamples minority classes via diverse augmentation. Mutually
+            exclusive with use_balanced_sampler.
+        aug_target_count_per_class: Target sample count per class after
+            augmentation expansion. Ignored if use_aug_balanced_dataset=False.
 
     Returns:
         Tuple of (train_loader, val_loader).
+
+    Raises:
+        ValueError: If both use_aug_balanced_dataset and use_balanced_sampler
+            are True.
     """
-    train_dataset = DRDataset(
-        df=train_df, image_dir=image_dir,
-        transform=get_train_transform(image_size),
-        preprocess=preprocess, target_size=image_size,
-        use_cache=use_cache, cache_dir=cache_dir,
-    )
+    if use_aug_balanced_dataset and use_balanced_sampler:
+        raise ValueError(
+            "use_aug_balanced_dataset and use_balanced_sampler are mutually "
+            "exclusive — both attempt to balance class distribution. "
+            "Use one or the other."
+        )
+
+    if use_aug_balanced_dataset:
+        train_dataset = AugmentedBalancedDataset(
+            df=train_df,
+            image_dir=image_dir,
+            target_count_per_class=aug_target_count_per_class,
+            image_size=image_size,
+            preprocess=preprocess,
+            use_cache=use_cache,
+            cache_dir=cache_dir,
+        )
+    else:
+        train_dataset = DRDataset(
+            df=train_df, image_dir=image_dir,
+            transform=get_train_transform(image_size),
+            preprocess=preprocess, target_size=image_size,
+            use_cache=use_cache, cache_dir=cache_dir,
+        )
+
     val_dataset = DRDataset(
         df=val_df, image_dir=image_dir,
         transform=get_val_transform(image_size),
@@ -411,7 +694,7 @@ def create_dataloaders(
     if use_balanced_sampler:
         train_labels = train_df["diagnosis"].values.tolist()
         sampler = make_balanced_sampler(train_labels)
-        shuffle = False  # Sampler and shuffle are mutually exclusive
+        shuffle = False
 
     train_loader = DataLoader(
         train_dataset,

@@ -106,6 +106,14 @@ CLASSIFIER_DROPOUT_RATE = MC_DROPOUT_RATE   # head dropout (may differ from MC r
 LR_WARMUP_EPOCHS = 0                        # 0 = no warmup; 2-3 = recommended
 
 # =============================================================================
+# AUGMENTATION-BASED BALANCING (Plan 08)
+
+USE_AUG_BALANCED_DATASET: bool = False      # False = existing DRDataset (safe default)
+AUG_TARGET_COUNT_PER_CLASS: int = 800       # Minimum samples per class after expansion
+AUG_FOCAL_ALPHA_UNIFORM: bool = True        # True = alpha=[1,1,1,1,1] when aug balanced
+AUG_GRADE_LEVEL_OVERRIDE: dict[int, str] | None = None  # None = use DEFAULT in dataset.py
+
+# =============================================================================
 # EVALUATION & VISUALIZATION
 
 BINARY_THRESHOLD = 0.5
