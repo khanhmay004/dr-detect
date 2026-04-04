@@ -1193,20 +1193,20 @@ Setting all flags to their defaults produces the **exact same pipeline** as the 
   - [x] B10.4: Run `temperature_scaling.py` — must produce valid output
   - [x] B10.5: Run `threshold_tuning.py` — must produce valid output
 
-- [ ] **B11**: GPU Training
-  - [ ] B11.1: Upload updated code to GPU instance
-  - [ ] B11.2: Run improved baseline training (fold 0): `python train.py --config configs/gpu_baseline_improved.yaml`
-  - [ ] B11.3: Monitor training curves — verify minority class F1 improves over epochs
-  - [ ] B11.4: Evaluate on APTOS validation — record per-class metrics
-  - [ ] B11.5: Evaluate on Messidor-2 (T=20) — record per-class metrics
-  - [ ] B11.6: Compare against old baseline (fill comparison table in Section 8)
+- [x] **B11**: GPU Training — ✅ COMPLETE (2026-04-03/04)
+  - [x] B11.1: Upload updated code to GPU instance
+  - [x] B11.2: Run sampler-only training (fold 0): `baseline_resnet50_sampler_only_20260403_185935` — **early stopped epoch 8, best epoch 3, QWK=0.9009**
+  - [x] B11.3: Run full improved baseline training (fold 0): `baseline_resnet50_full_20260403_192310` — **25 epochs, best epoch 18, QWK=0.9169**
+  - [x] B11.4: Evaluate full model on APTOS test — **Acc=82.73%, QWK=0.8972, AUC=0.9820**
+  - [x] B11.5: Evaluate full model on Messidor-2 (T=20) — **Acc=62.44%, QWK=0.4582, AUC=0.8602**
+  - [x] B11.6: Compare against old baseline (results in Section 12 below)
 
 - [ ] **B12**: Post-Training Analysis
   - [ ] B12.1: Apply temperature scaling to new model
   - [ ] B12.2: Apply threshold tuning to new model
   - [ ] B12.3: Run Messidor-2 evaluation with tuned thresholds
   - [ ] B12.4: Generate comparison figures (confusion matrices: old vs new, side by side)
-  - [ ] B12.5: Update `docs/result-report.md` with new results
+  - [x] B12.5: Update `docs/result-report.md` with new results — **PARTIAL: Need to add latest results**
 
 ### Phase C — Ordinal Loss (If Time Permits)
 
@@ -1254,3 +1254,288 @@ Setting all flags to their defaults produces the **exact same pipeline** as the 
 | `src/configs/gpu_baseline_ordinal.yaml` | C2 | **New** | Ordinal loss training config |
 
 **Total**: 8 modified files, 4 new files.
+
+---
+
+## 12. Experimental Results (2026-04-03/04)
+
+### Training Experiments
+
+Three baseline models were trained on data_split (2,489 train / 623 val):
+
+| Model | Timestamp | Config | Epochs | Best Epoch | Runtime | Val Acc | Val QWK | Val AUC |
+|-------|-----------|--------|--------|------------|---------|---------|---------|---------|
+| **Original Baseline** | 20260403_120248 | Standard (no improvements) | 20 | 15 | 31m 39s | 84.43% | 0.9153 | 0.9904 |
+| **Sampler Only** | 20260403_185935 | Balanced sampler only | 8 (early stopped) | 3 | 20m 02s | 80.26% | 0.9009 | 0.9839 |
+| **Full Improved** | 20260403_192310 | All improvements | 25 | 18 | 51m 26s | **85.07%** | **0.9169** | 0.9879 |
+
+### Key Training Improvements (Full Model)
+
+**Architecture Changes:**
+- Deeper classifier head: 2048 → 512 → 5 (vs original: 2048 → 5)
+- Dropout: 0.3 (vs original: 0.5)
+- Total params: 24,560,709 (vs original: 23,518,277)
+
+**Training Enhancements:**
+- ✅ Balanced sampler (equal samples per class per epoch)
+- ✅ Label smoothing: 0.1
+- ✅ LR warmup: 2 epochs (LinearLR → CosineAnnealingLR)
+- ✅ Extended training: 25 epochs (vs original: 20)
+- ❌ Class weights disabled (redundant with balanced sampler)
+
+**Scheduler:**
+```python
+SequentialLR(
+    LinearLR(start_factor=0.1, total_iters=2),  # Warmup
+    CosineAnnealingLR(T_max=23)                  # Main training
+)
+```
+
+### Validation Performance Comparison
+
+#### Internal Validation (APTOS Val, N=623)
+
+**Overall Metrics:**
+
+| Metric | Original | Sampler Only | Full Improved | Best Model |
+|--------|----------|--------------|---------------|------------|
+| Accuracy | 84.43% | 80.26% | **85.07%** | Full (+0.6 pp) |
+| QWK | 0.9153 | 0.9009 | **0.9169** | Full (+0.0016) |
+| AUC | **0.9904** | 0.9839 | 0.9879 | Original |
+| Sensitivity | 0.9289 | 0.8972 | **0.9565** | Full (+2.8 pp) |
+| Specificity | 0.9595 | **0.9649** | 0.9486 | Sampler Only |
+| Macro F1 | 0.7326 | 0.6659 | **0.7234** | Full |
+
+**Per-Class F1 Scores:**
+
+| Grade | Original | Sampler Only | Full Improved | Change (Full vs Orig) |
+|-------|----------|--------------|---------------|----------------------|
+| 0 - No DR | 0.9837 | 0.9788 | 0.9805 | **-0.0032** |
+| 1 - Mild | 0.7023 | 0.6857 | 0.6724 | **-0.0299** ⚠️ |
+| 2 - Moderate | 0.7730 | 0.7181 | **0.8047** | **+0.0317** ✅ |
+| 3 - Severe | 0.5532 | 0.4262 | 0.4928 | **-0.0604** ⚠️ |
+| 4 - Proliferative | 0.6506 | 0.5205 | **0.6667** | **+0.0161** ✅ |
+
+**Per-Class Recall:**
+
+| Grade | Original | Sampler Only | Full Improved | Change |
+|-------|----------|--------------|---------------|--------|
+| 0 - No DR | 0.9805 | 0.9772 | **0.9837** | +0.0032 |
+| 1 - Mild | **0.7302** | **0.7619** | 0.6190 | **-0.1112** ⚠️ **REGRESSION** |
+| 2 - Moderate | 0.7412 | 0.6294 | **0.8118** | **+0.0706** ✅ |
+| 3 - Severe | **0.7879** | **0.7879** | 0.5152 | **-0.2727** ⚠️ **SEVERE REGRESSION** |
+| 4 - Proliferative | 0.5400 | 0.3800 | **0.6800** | **+0.1400** ✅ |
+
+**Per-Class Precision:**
+
+| Grade | Original | Sampler Only | Full Improved | Change |
+|-------|----------|--------------|---------------|--------|
+| 0 - No DR | 0.9869 | 0.9804 | 0.9773 | -0.0096 |
+| 1 - Mild | 0.6765 | 0.6234 | **0.7358** | **+0.0593** ✅ |
+| 2 - Moderate | **0.8077** | **0.8359** | 0.7977 | -0.0100 |
+| 3 - Severe | 0.4262 | 0.2921 | **0.4722** | **+0.0460** ✅ |
+| 4 - Proliferative | **0.8182** | **0.8261** | 0.6538 | -0.1644 ⚠️ |
+
+### External Test Performance
+
+#### APTOS Test Split (N=550)
+
+| Metric | Original (20260403_124108) | Full Improved (20260404_034521) | Change |
+|--------|----------------------------|----------------------------------|--------|
+| Accuracy | 81.09% | **82.73%** | **+1.64 pp** ✅ |
+| QWK | 0.8959 | **0.8972** | **+0.0013** |
+| AUC | **0.9841** | 0.9820 | -0.0021 |
+| Sensitivity | 0.8744 | **0.9417** | **+6.73 pp** ✅ |
+| Specificity | **0.9511** | 0.9388 | -1.23 pp |
+| ECE | 0.0478 | **0.0377** | **-0.0101** ✅ Better calibration |
+| Brier Score | 0.2551 | **0.2498** | **-0.0053** ✅ |
+
+**Per-Class Performance (APTOS Test):**
+
+| Grade | Metric | Original | Full Improved | Change |
+|-------|--------|----------|---------------|--------|
+| **0 - No DR** | Recall | **0.9705** | 0.9742 | +0.0037 |
+| | Precision | **0.9850** | 0.9670 | -0.0180 |
+| | F1 | **0.9777** | 0.9706 | -0.0071 |
+| **1 - Mild** | Recall | **0.6607** | 0.5179 | **-0.1428** ⚠️ |
+| | Precision | 0.5139 | **0.6170** | +0.1031 |
+| | F1 | **0.5781** | 0.5631 | -0.0150 |
+| **2 - Moderate** | Recall | 0.6867 | **0.8200** | **+0.1333** ✅ |
+| | Precision | 0.7574 | **0.7500** | -0.0074 |
+| | F1 | 0.7203 | **0.7834** | **+0.0631** ✅ |
+| **3 - Severe** | Recall | 0.5172 | 0.5172 | 0.0000 |
+| | Precision | **0.4688** | **0.4688** | 0.0000 |
+| | F1 | **0.4918** | **0.4918** | 0.0000 |
+| **4 - Proliferative** | Recall | **0.6364** | 0.5455 | -0.0909 |
+| | Precision | 0.6512 | **0.7059** | +0.0547 |
+| | F1 | 0.6437 | **0.6154** | -0.0283 |
+
+#### Messidor-2 External Test (N=1744)
+
+| Metric | Original (20260403_124305) | Full Improved (20260404_033756) | Change |
+|--------|----------------------------|----------------------------------|--------|
+| Accuracy | **62.79%** | 62.44% | -0.35 pp |
+| QWK | **0.6233** | 0.4582 | **-0.1651** ⚠️ **SEVERE REGRESSION** |
+| AUC | **0.8630** | 0.8602 | -0.0028 |
+| Sensitivity | **0.4398** | 0.3435 | **-9.63 pp** ⚠️ |
+| Specificity | 0.9744 | **0.9845** | **+1.01 pp** |
+| ECE | **0.1155** | 0.1601 | +0.0446 ⚠️ Worse calibration |
+| Brier Score | **0.5231** | 0.5645 | +0.0414 ⚠️ |
+
+**Per-Class Performance (Messidor-2):**
+
+| Grade | Metric | Original | Full Improved | Change |
+|-------|--------|----------|---------------|--------|
+| **0 - No DR** | Recall | **0.9420** | **0.9853** | **+0.0433** ✅ |
+| | Precision | **0.7247** | 0.6448 | -0.0799 ⚠️ |
+| | F1 | **0.8192** | 0.7795 | -0.0397 |
+| **1 - Mild** | Recall | **0.0926** | 0.0074 | **-0.0852** ⚠️ **CATASTROPHIC** |
+| | Precision | **0.1330** | 0.1538 | +0.0208 |
+| | F1 | **0.1092** | 0.0141 | **-0.0951** ⚠️ |
+| **2 - Moderate** | Recall | **0.1614** | 0.1470 | -0.0144 |
+| | Precision | **0.5957** | 0.5100 | -0.0857 |
+| | F1 | **0.2540** | 0.2282 | -0.0258 |
+| **3 - Severe** | Recall | **0.5600** | 0.2800 | **-0.2800** ⚠️ |
+| | Precision | 0.4000 | **0.4468** | +0.0468 |
+| | F1 | **0.4667** | 0.3446 | **-0.1221** ⚠️ |
+| **4 - Proliferative** | Recall | **0.4000** | 0.3714 | -0.0286 |
+| | Precision | 0.4000 | **0.4333** | +0.0333 |
+| | F1 | **0.4000** | 0.4000 | 0.0000 |
+
+### Analysis & Conclusions
+
+#### ✅ Successes
+
+1. **Internal Validation**: Slight improvement in overall metrics
+   - QWK: +0.0016 (0.9153 → 0.9169)
+   - Accuracy: +0.64 pp (84.43% → 85.07%)
+   - Sensitivity: +2.76 pp (92.89% → 95.65%)
+
+2. **APTOS Test**: Meaningful improvements
+   - Accuracy: +1.64 pp (81.09% → 82.73%)
+   - Sensitivity: +6.73 pp (87.44% → 94.17%) — **Major improvement in referable DR detection**
+   - Calibration: ECE -0.0101 (0.0478 → 0.0377)
+   - Moderate DR (Grade 2) recall: +13.3 pp (0.687 → 0.820)
+
+3. **Architectural Improvements**:
+   - Deeper classifier head provides better feature transformation
+   - Label smoothing improves generalization
+   - LR warmup stabilizes early training
+
+#### ⚠️ Failures & Regressions
+
+1. **Messidor-2 Catastrophic Collapse**: **CRITICAL FAILURE**
+   - QWK: **-0.1651** (0.6233 → 0.4582) — **26.5% relative degradation**
+   - Sensitivity: -9.63 pp (43.98% → 34.35%)
+   - Mild DR recall: **-0.0852** (9.26% → 0.74%) — **92% of minority class missed**
+   - Severe DR recall: **-0.2800** (56.00% → 28.00%) — **50% regression**
+   - Model became **excessively conservative**, over-predicting Grade 0
+
+2. **Internal Validation Minority Class Regressions**:
+   - Mild DR (Grade 1) recall: **-11.12 pp** (73.02% → 61.90%)
+   - Severe DR (Grade 3) recall: **-27.27 pp** (78.79% → 51.52%)
+   - Balanced sampler helped Grade 2 and 4, but **hurt Grade 1 and 3**
+
+3. **Overfitting to APTOS Distribution**:
+   - Improvements on APTOS test did NOT transfer to Messidor-2
+   - Model learned dataset-specific patterns instead of generalizable DR features
+   - Domain shift vulnerability **increased** rather than decreased
+
+#### 🔍 Root Cause Analysis
+
+**Why did balanced sampling fail?**
+
+1. **Training Set Composition**:
+   - After balanced sampling, model sees equal examples from all grades per epoch
+   - But Grade 1 and 3 have **higher intra-class variance** than Grade 0
+   - Equal sampling ≠ equal learning difficulty
+   - Small minority classes (Grade 3: ~66 samples) may need **more** than 1× representation
+
+2. **Domain Shift Amplification**:
+   - Original model learned conservative biases that partially transferred to Messidor-2
+   - Improved model learned APTOS-specific decision boundaries
+   - Deeper classifier head may have **increased model capacity to overfit**
+
+3. **Dropout Reduction Backfire**:
+   - Reduced dropout (0.5 → 0.3) intended to preserve minority class features
+   - Instead, enabled overfitting to APTOS-specific noise
+   - Higher dropout may have acted as implicit domain-agnostic regularization
+
+4. **Messidor-2 Class Distribution Mismatch**:
+   - Messidor-2 has different grade proportions than APTOS
+   - Balanced sampler optimized for APTOS distribution
+   - Model decision boundaries shifted away from Messidor-2's natural thresholds
+
+#### 📊 Success Criteria Evaluation
+
+| Target | Current Baseline | Full Improved | Status |
+|--------|-----------------|---------------|--------|
+| Grade 3 F1 ≥ 0.45 | 0.5532 | 0.4928 | ❌ **Regression** (-0.0604) |
+| Grade 1 F1 ≥ 0.55 | 0.7023 | 0.6724 | ⚠️ **Maintained** but regressed |
+| Macro F1 ≥ 0.65 | 0.7326 | 0.7234 | ⚠️ **Above target** but regressed |
+| QWK ≥ 0.88 | 0.9153 | 0.9169 | ✅ **Improved** (+0.0016) |
+| Grade 0 Recall ≥ 0.90 | 0.9805 | 0.9837 | ✅ **Maintained** (+0.0032) |
+
+**Overall**: 2/5 criteria met. Grade 3 performance **regressed** instead of improving.
+
+### Recommendations
+
+#### Immediate Actions
+
+1. **❌ DO NOT USE** full improved model for production
+   - Messidor-2 performance is unacceptable (QWK 0.4582)
+   - Risk of catastrophic failure on real-world data
+
+2. **✅ KEEP** original baseline (20260403_120248) as primary model
+   - Better external generalization (Messidor-2 QWK 0.6233)
+   - More conservative, safer for clinical use
+
+3. **⚠️ INVESTIGATE** sampler-only model
+   - Early stopped at epoch 3 — may not have converged
+   - Rerun with patience=10 to see if it stabilizes
+   - Could be middle ground between original and full improvements
+
+#### Future Experiments
+
+1. **Revert Problematic Changes**:
+   - Try full improvements BUT restore dropout=0.5
+   - Try balanced sampler with 2× or 3× oversampling of Grade 1/3 instead of equal sampling
+   - Remove deeper classifier head (revert to simple 2048→5)
+
+2. **Domain Adaptation**:
+   - Fine-tune on small Messidor-2 subset (with frozen backbone)
+   - Use domain-adversarial training
+   - Mix APTOS + Messidor-2 in training set
+
+3. **Alternative Sampling Strategies**:
+   - Focal sampler (higher probability for hard-to-classify samples)
+   - Progressive sampling (start balanced, gradually shift to natural distribution)
+   - Class-wise weighted sampler (different weights for Grade 1, 3 vs 2, 4)
+
+4. **Regularization**:
+   - Increase dropout to 0.6 or 0.7
+   - Add MixUp or CutMix augmentation
+   - Use DropBlock instead of standard dropout
+
+5. **Evaluation Protocol**:
+   - ALWAYS evaluate on Messidor-2 after every training change
+   - Use Messidor-2 QWK as primary stopping criterion (not APTOS val)
+   - Implement multi-dataset early stopping (stop if either degrades)
+
+---
+
+## 13. Lessons Learned
+
+1. **Balanced sampling alone is insufficient** — it helped some minority classes but hurt others
+2. **Domain generalization is paramount** — APTOS test improvements mean nothing if Messidor-2 collapses
+3. **Architectural capacity matters** — deeper head may have increased overfitting capacity
+4. **Hyperparameter interactions are complex** — dropout reduction + balanced sampling + label smoothing had unexpected emergent behavior
+5. **Conservative models generalize better** — original baseline's bias toward Grade 0 actually helped on external data
+6. **Always validate externally** — internal validation improvements can be misleading
+
+### Next Phase Priorities
+
+1. **Messidor-2-aware training** — must optimize for external generalization, not just APTOS validation
+2. **Ablation studies** — test improvements individually, not all at once
+3. **Domain shift metrics** — track distribution distance between train and eval sets
+4. **Robust evaluation** — use multiple external datasets, not just Messidor-2

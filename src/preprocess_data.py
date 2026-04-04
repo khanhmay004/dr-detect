@@ -1,15 +1,4 @@
 """
-Offline data preprocessing script.
-
-Preprocesses all APTOS and Messidor-2 images with Ben Graham's method
-and saves them to disk for faster training. This eliminates the need
-to recompute preprocessing every epoch.
-
-Performance impact:
-    - On-the-fly: ~58,600 preprocessing ops over 20 epochs (~50-100 min overhead)
-    - Offline: ~5 minutes once, then near-zero overhead
-
-Usage:
     python preprocess_data.py                     # Process both datasets
     python preprocess_data.py --dataset aptos    # Process APTOS only
     python preprocess_data.py --dataset messidor # Process Messidor-2 only

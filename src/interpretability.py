@@ -1,19 +1,3 @@
-"""
-Grad-CAM interpretability module for DR detection models.
-
-Provides lesion-focused heatmaps from trained checkpoints with side-by-side
-visualization for clinical trust assessment.
-
-Key components:
-    - GradCAM: Hook-based gradient-weighted class activation mapping
-    - Overlay utilities: Heatmap blending with original images
-    - Panel plotting: Multi-panel figure export for thesis
-
-Reference:
-    Selvaraju et al., "Grad-CAM: Visual Explanations from Deep Networks
-    via Gradient-based Localization", ICCV 2017
-"""
-
 from pathlib import Path
 from typing import Callable
 
@@ -35,23 +19,6 @@ from config import (
 
 
 class GradCAM:
-    """Gradient-weighted Class Activation Mapping.
-
-    Generates saliency maps highlighting regions most relevant to a
-    specific class prediction. Uses forward/backward hooks to capture
-    intermediate activations and gradients.
-
-    Args:
-        model: Trained CNN model (BaselineResNet50 or CBAMResNet50).
-        target_module: The convolutional layer to extract CAM from.
-
-    Example:
-        >>> model = create_model()
-        >>> gradcam = GradCAM(model, model.layer4)
-        >>> cam = gradcam.generate(input_tensor, class_index=2)
-        >>> gradcam.remove_hooks()
-    """
-
     def __init__(self, model: nn.Module, target_module: nn.Module):
         self.model = model
         self.target_module = target_module
@@ -96,16 +63,7 @@ class GradCAM:
         class_index: int | None = None,
         upsample_size: tuple[int, int] | None = None,
     ) -> torch.Tensor:
-        """Generate Grad-CAM heatmap for the input.
 
-        Args:
-            input_tensor: Input image tensor, shape (1, 3, H, W).
-            class_index: Target class for CAM. If None, uses predicted class.
-            upsample_size: Output size (H, W). If None, uses input size.
-
-        Returns:
-            CAM heatmap tensor, shape (H, W), values in [0, 1].
-        """
         if input_tensor.dim() != 4 or input_tensor.size(0) != 1:
             raise ValueError("Input must have shape (1, 3, H, W)")
 
@@ -146,22 +104,13 @@ class GradCAM:
         return cam.squeeze().cpu()
 
 
+
+
 def get_target_module(
     model: nn.Module,
     layer_name: str,
 ) -> nn.Module:
-    """Retrieve target module from model by name.
 
-    Args:
-        model: The model instance.
-        layer_name: One of 'layer3', 'layer4', 'cbam3', 'cbam4'.
-
-    Returns:
-        The target nn.Module for Grad-CAM hooks.
-
-    Raises:
-        ValueError: If layer_name is invalid or not found.
-    """
     valid_layers = ["layer3", "layer4", "cbam3", "cbam4"]
     if layer_name not in valid_layers:
         raise ValueError(f"layer_name must be one of {valid_layers}")
@@ -182,16 +131,6 @@ def denormalize_tensor(
     mean: list[float] = IMAGENET_MEAN,
     std: list[float] = IMAGENET_STD,
 ) -> np.ndarray:
-    """Convert normalized tensor back to RGB uint8 image.
-
-    Args:
-        tensor: Normalized image tensor, shape (3, H, W) or (1, 3, H, W).
-        mean: Normalization mean (ImageNet default).
-        std: Normalization std (ImageNet default).
-
-    Returns:
-        RGB image as uint8 ndarray, shape (H, W, 3).
-    """
     if tensor.dim() == 4:
         tensor = tensor.squeeze(0)
 
@@ -211,15 +150,6 @@ def apply_colormap(
     cam: np.ndarray,
     colormap: int = cv2.COLORMAP_JET,
 ) -> np.ndarray:
-    """Apply colormap to grayscale CAM.
-
-    Args:
-        cam: Grayscale CAM, shape (H, W), values in [0, 1].
-        colormap: OpenCV colormap constant.
-
-    Returns:
-        Colored heatmap as RGB uint8 ndarray, shape (H, W, 3).
-    """
     cam_uint8 = (cam * 255).astype(np.uint8)
     heatmap_bgr = cv2.applyColorMap(cam_uint8, colormap)
     heatmap_rgb = cv2.cvtColor(heatmap_bgr, cv2.COLOR_BGR2RGB)

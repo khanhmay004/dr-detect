@@ -3,11 +3,11 @@
   "checkpoint": "baseline_resnet50_20260403_120248_fold0_best.pth",
   "fold": 0,
   "n_samples": 623,
-  "temperature": 1.0320228338241577,
-  "ece_before": 0.04388770609376519,
-  "ece_after": 0.04256190079747197,
-  "ece_reduction": 0.0013258052962932185,
-  "brier_before": 0.23688626289367676,
-  "brier_after": 0.23759524524211884,
-  "brier_reduction": -0.0007089823484420776
+  "temperature": 1.0320814847946167,
+  "ece_before": 0.048841737342301766,
+  "ece_after": 0.0432652687567195,
+  "ece_reduction": 0.005576468585582264,
+  "brier_before": 0.23705755174160004,
+  "brier_after": 0.23776847124099731,
+  "brier_reduction": -0.0007109194993972778
 }

@@ -1,0 +1,90 @@
+{
+  "run_info": {
+    "run_tag": "baseline_resnet50_20260403_192310_fold0",
+    "model_name": "baseline_resnet50",
+    "fold": 0,
+    "timestamp": "20260403_192310",
+    "start_time": "2026-04-03T19:23:10.250497",
+    "end_time": "2026-04-03T20:14:36.664370",
+    "runtime_seconds": 3086.413873195648,
+    "runtime_formatted": "00:51:26"
+  },
+  "best_metrics": {
+    "epoch": 18,
+    "val_kappa": 0.916888443701796,
+    "val_acc": 0.8507223113964687,
+    "val_auc": 0.9879286401025532,
+    "val_sens": 0.9565217391304348,
+    "val_spec": 0.9486486486486486,
+    "val_loss": 0.3440160899636833,
+    "train_acc": 0.9512096774193548,
+    "train_loss": 0.1269394035749332,
+    "val_f1_macro": 0.7234036573020142,
+    "val_f1_per_class": [
+      0.9805194805194806,
+      0.6724137931034483,
+      0.8046647230320699,
+      0.4927536231884058,
+      0.6666666666666666
+    ],
+    "val_recall_per_class": [
+      0.9837133550488599,
+      0.6190476190476191,
+      0.8117647058823529,
+      0.5151515151515151,
+      0.68
+    ],
+    "val_precision_per_class": [
+      0.9773462783171522,
+      0.7358490566037735,
+      0.7976878612716763,
+      0.4722222222222222,
+      0.6538461538461539
+    ]
+  },
+  "final_metrics": {
+    "epoch": 25,
+    "val_kappa": 0.9161610040820485,
+    "val_acc": 0.8459069020866774,
+    "val_auc": 0.9844247409464801,
+    "val_sens": 0.9486166007905138,
+    "val_spec": 0.9513513513513514,
+    "val_loss": 0.35260954547081486,
+    "train_acc": 0.9653225806451613,
+    "train_loss": 0.10033793576801096
+  },
+  "hyperparameters": {
+    "epochs": 25,
+    "batch_size": 16,
+    "learning_rate": 0.0001,
+    "weight_decay": 0.0001,
+    "focal_gamma": 2.0,
+    "image_size": 512,
+    "dropout_rate": 0.3,
+    "grad_clip_norm": 1.0,
+    "optimizer": "AdamW",
+    "scheduler": "SequentialLR(LinearLR(2ep) + CosineAnnealingLR)",
+    "seed": 42,
+    "n_folds": 5,
+    "train_size": 2489,
+    "val_size": 623,
+    "total_params": 24560709,
+    "label_smoothing": 0.1,
+    "use_balanced_sampler": true,
+    "classifier_hidden_dim": 512,
+    "lr_warmup_epochs": 2,
+    "use_class_weights": false
+  },
+  "training_config": {
+    "epochs_requested": 25,
+    "epochs_completed": 25,
+    "early_stopped": false,
+    "device": "cuda",
+    "amp_enabled": true,
+    "grad_clip_norm": 1.0
+  },
+  "checkpoints": {
+    "best": "baseline_resnet50_20260403_192310_fold0_best.pth",
+    "last": "baseline_resnet50_20260403_192310_fold0_last.pth"
+  }
+}

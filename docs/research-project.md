@@ -1,7 +1,7 @@
 # Research Project: Uncertainty-Aware Attention CNN for Diabetic Retinopathy Grading
 
 > **Document Role**: Single source-of-truth for the `dr-detect` project.
-> **Last Updated**: 2026-03-31 (Phase 3D complete; redesign planning next)
+> **Last Updated**: 2026-04-04 (Phase 7 improvements tested; original baseline retained)
 > **Project Type**: Bachelor's Thesis — Data Science (Deep Learning in Healthcare)
 > **Timeline**: 1 month (01/03/2026 – 31/03/2026)
 
@@ -560,7 +560,7 @@ plans/
 | Messidor-2 full evaluation (CBAM, T=20)        | ✅ Complete | 1,744 gradable images |
 | Phase-2 artifact consolidation (`phase2-results`) | ✅ Complete | Logs, checkpoints, figures, metrics archived |
 
-### 11.4. Pending Work (Post-Phase 3E)
+### 11.4. Pending Work (Post-Phase 7)
 
 | Task                                           | Status             | Priority | Dependencies |
 | ---------------------------------------------- | ------------------ | -------- | ------------ |
@@ -569,12 +569,13 @@ plans/
 | Full Messidor re-evaluation with calibration outputs (baseline + CBAM) | ✅ Complete | Complete | Phase 3D complete |
 | Per-class failure root-cause analysis          | ✅ Complete | Complete | Phase 3E — `docs/improve-model.md` |
 | Improvement implementation plan                | ✅ Complete | Complete | Phase 3E — `plans/07-improve-model.md` |
-| Post-hoc fixes (temperature scaling, threshold tuning) | ⬜ Not started | **Critical** | Plan Phase A — no retraining |
-| Balanced sampler + label smoothing + deeper head | ⬜ Not started | **Critical** | Plan Phase B — retrain fold 0 |
-| Ordinal soft-label loss (optional)             | ⬜ Not started | Medium | Plan Phase C — retrain fold 0 |
-| CBAM folds 1-4 training                        | ⏸ Deferred (redesign-first) | High     | Post-improvement retrain |
-| Cross-fold stats for CBAM (mean ± std)         | ⏸ Deferred (redesign-first) | High     | CBAM folds 1-4 |
-| 4-model ablation table (A–D)                   | ⏸ Deferred to post-redesign | High     | Updated model variants |
+| Post-hoc fixes (temperature scaling, threshold tuning) | ✅ Complete | Complete | Phase 7A — no improvement found |
+| Balanced sampler + label smoothing + deeper head | ✅ Complete | Complete | Phase 7B — **FAILED on Messidor-2** |
+| Sampler-only ablation | ✅ Complete | Complete | Phase 7B — early stopped |
+| Ordinal soft-label loss (optional)             | ⬜ Not started | Low | Deferred due to Phase 7B failure |
+| CBAM folds 1-4 training                        | ⏸ Deferred (redesign-first) | Medium     | Post-improvement retrain |
+| Cross-fold stats for CBAM (mean ± std)         | ⏸ Deferred (redesign-first) | Medium     | CBAM folds 1-4 |
+| 4-model ablation table (A–D)                   | ⏸ Deferred to post-redesign | Medium     | Updated model variants |
 | Publication-quality final figures              | ⬜ Not started     | Medium   | Core experiments complete |
 | Thesis writing integration                     | ⬜ Not started     | High     | Core experiments complete |
 
@@ -651,6 +652,127 @@ Three-phase improvement roadmap:
 | C (Optional) | Ordinal soft-label loss | Yes | loss.py + 1 new YAML |
 
 All improvements designed as backward-compatible config flags (defaults preserve current behaviour). See `plans/07-improve-model.md` for full code snippets and 40+ granular TODO items.
+
+### 11.7. Phase 7 — Improvement Implementation & Results (✅ Complete — 2026-04-03/04)
+
+Phase 7 implemented and tested the improvement plan from Phase 3E. Results revealed critical lessons about internal vs external validation.
+
+#### Phase 7A — Post-Hoc Fixes (✅ Complete)
+
+**Temperature Scaling**:
+- Optimal temperature: T=1.0321 (nearly 1.0)
+- ECE improvement: 4.88% → 4.33% (minimal)
+- **Conclusion**: Model already well-calibrated, no benefit
+
+**Threshold Tuning**:
+- Optimized thresholds: [1.0, 1.0, 1.0, 1.0, 1.0] (all unity)
+- Per-class recall improvement: ZERO
+- **Conclusion**: Decision boundaries already optimal
+
+**Phase 7A Verdict**: Post-hoc fixes cannot compensate for structural training imbalances. Phase 7B required.
+
+#### Phase 7B — Structural Improvements (✅ Complete)
+
+Three models trained on data_split (2,489 train / 623 val):
+
+| Model | Timestamp | Improvements | Epochs | Best Epoch | Runtime | Val QWK |
+|-------|-----------|--------------|--------|------------|---------|---------|
+| **Original Baseline** | 20260403_120248 | None (pre-improvement baseline) | 20 | 15 | 31m 39s | **0.9153** |
+| **Sampler-Only** | 20260403_185935 | Balanced sampler only | 8* | 3 | 20m 02s | 0.9009 |
+| **Full Improved** | 20260403_192310 | All improvements† | 25 | 18 | 51m 26s | **0.9169** |
+
+*Early stopped at epoch 8 due to overfitting.
+
+†Full improvements:
+- Balanced sampler (equal samples per class per epoch)
+- Deeper classifier head: 2048 → **512** → 5
+- Label smoothing: 0.1
+- LR warmup: 2 epochs (LinearLR → CosineAnnealingLR)
+- Reduced dropout: 0.3 (vs 0.5)
+- Extended training: 25 epochs
+
+#### Internal Validation Results (APTOS Val, N=623)
+
+| Metric | Original | Sampler-Only | Full Improved | Best |
+|--------|----------|--------------|---------------|------|
+| Accuracy | 84.43% | 80.26% | **85.07%** | Full (+0.64 pp) |
+| QWK | 0.9153 | 0.9009 | **0.9169** | Full (+0.0016) |
+| AUC | **0.9904** | 0.9839 | 0.9879 | Original |
+| Sensitivity | 0.9289 | 0.8972 | **0.9565** | Full (+2.76 pp) |
+
+**Per-Class Recall (Validation)**:
+
+| Grade | Original | Full Improved | Change |
+|-------|----------|---------------|--------|
+| 0 - No DR | 0.9805 | **0.9837** | +0.0032 |
+| 1 - Mild | **0.7302** | 0.6190 | **-0.1112** ⚠️ |
+| 2 - Moderate | 0.7412 | **0.8118** | **+0.0706** ✅ |
+| 3 - Severe | **0.7879** | 0.5152 | **-0.2727** ⚠️ **REGRESSION** |
+| 4 - Proliferative | 0.5400 | **0.6800** | **+0.1400** ✅ |
+
+#### External Evaluation — APTOS Test (N=550)
+
+| Metric | Original | Full Improved | Change |
+|--------|----------|---------------|--------|
+| Accuracy | 81.09% | **82.73%** | **+1.64 pp** ✅ |
+| QWK | 0.8959 | **0.8972** | **+0.0013** |
+| Sensitivity | 87.44% | **94.17%** | **+6.73 pp** ✅ |
+| ECE | 0.0478 | **0.0377** | **-0.0101** ✅ |
+
+**APTOS Test Verdict**: ✅ Improvements validated — better accuracy, sensitivity, and calibration.
+
+#### External Evaluation — Messidor-2 (N=1744) — **CATASTROPHIC FAILURE**
+
+| Metric | Original | Full Improved | Change |
+|--------|----------|---------------|--------|
+| Accuracy | **62.79%** | 62.44% | -0.35 pp |
+| QWK | **0.6233** | 0.4582 | **-0.1651** ❌ **-26.5% relative** |
+| Sensitivity | **43.98%** | 34.35% | **-9.63 pp** ❌ |
+| ECE | **0.1155** | 0.1601 | **+0.0446** ❌ |
+
+**Per-Class Recall (Messidor-2)**:
+
+| Grade | Original | Full Improved | Change |
+|-------|----------|---------------|--------|
+| 0 - No DR | 0.9420 | 0.9853 | +0.0433 |
+| 1 - Mild | **0.0926** | 0.0074 | **-0.0852** ❌ **CATASTROPHIC** |
+| 2 - Moderate | **0.1614** | 0.1470 | -0.0144 |
+| 3 - Severe | **0.5600** | 0.2800 | **-0.2800** ❌ **HALVED** |
+| 4 - Proliferative | **0.4000** | 0.3714 | -0.0286 |
+
+**Messidor-2 Verdict**: ❌ **CATASTROPHIC FAILURE** — QWK degraded by 26.5%, Mild DR recall dropped from 9.26% to 0.74% (92% of cases missed).
+
+#### Phase 7 Final Decision
+
+**✅ KEEP** Original Baseline (20260403_120248) as production model:
+- Better external generalization (Messidor-2 QWK: 0.6233 vs 0.4582)
+- Safer for clinical deployment
+- More conservative, less prone to catastrophic minority class failures
+
+**❌ REJECT** Full Improved Baseline:
+- Overfitted to APTOS distribution
+- Cannot generalize to Messidor-2
+- Deeper head + balanced sampling increased overfitting capacity
+- Internal validation improvements do NOT guarantee external performance
+
+#### Critical Lesson Learned
+
+**Internal validation improvements ≠ External generalization**
+
+The improved model achieved:
+- ✅ Better APTOS validation metrics
+- ✅ Better APTOS test metrics
+- ❌ **Catastrophically worse** Messidor-2 metrics
+
+Root cause: Model learned **APTOS-specific patterns** instead of generalizable DR features. Balanced sampling + deeper classifier head increased model capacity to memorize dataset artifacts.
+
+**Implication for thesis**: External validation on multiple datasets is **mandatory** before claiming model improvement. Single-dataset validation is insufficient for clinical AI.
+
+**Updated recommendation**: Future improvements must optimize for **Messidor-2 performance** as primary metric, not APTOS validation. Consider:
+- Multi-dataset training (APTOS + Messidor-2 mixed)
+- Domain adversarial training
+- Reduce model capacity (simpler head, higher dropout)
+- Focus on domain-agnostic features
 
 ---
 
@@ -934,41 +1056,94 @@ Three-phase improvement roadmap per `plans/07-improve-model.md`:
 
 ---
 
-## 16. Expected Results
+## 16. Expected vs Actual Results
 
-### 16.1. APTOS Validation
+### 16.1. APTOS Validation (Fold 0)
 
-| Metric       | Baseline ResNet-50 (Expected) | Baseline ResNet-50 (Actual) | CBAM-ResNet50 (Expected) |
-| ------------ | ----------------------------- | --------------------------- | ------------------------ |
-| Val Accuracy | 72–78%                        | **84.45%** ✅                | 78–85%                   |
-| Val QWK      | 0.75–0.82                     | **0.9088** ✅                | 0.75–0.85                |
-| Macro F1     | 0.55–0.65                     | TBD                         | 0.60–0.72                |
-| Val AUC      | 0.85–0.92                     | **0.9846** ✅                | 0.88–0.94                |
+| Metric       | Baseline (Expected) | Baseline (Actual) | CBAM (Actual) | Improved Baseline (Actual) |
+| ------------ | ------------------- | ----------------- | ------------- | -------------------------- |
+| Val Accuracy | 72–78%              | **84.43%** ✅      | **78.99%**    | **85.07%** ✅               |
+| Val QWK      | 0.75–0.82           | **0.9153** ✅      | **0.8896**    | **0.9169** ✅               |
+| Macro F1     | 0.55–0.65           | **0.7326**        | **0.6282**    | **0.7234**                 |
+| Val AUC      | 0.85–0.92           | **0.9904** ✅      | **0.9831**    | **0.9879** ✅               |
+| Sensitivity  | —                   | **0.9289**        | **0.8792**    | **0.9565** ✅               |
 
-**Note**: Baseline significantly exceeded expectations, setting a high bar for CBAM ablation.
+**Observations**:
+- All models significantly exceeded expected performance on internal validation
+- Improved baseline achieved highest accuracy and sensitivity
+- Original baseline maintained best overall balance
 
-### 16.2. Messidor-2 External
+### 16.2. APTOS Test Split (N=550)
 
-| Metric               | Baseline (Actual) | CBAM-ResNet50 (Actual) |
-| -------------------- | ----------------- | ---------------------- |
-| Accuracy             | **0.6399**        | **0.6095**             |
-| QWK                  | **0.6000**        | **0.5777**             |
-| Binary Referable AUC | **0.8911**        | **0.8778**             |
-| Referable Sensitivity| **0.4464**        | **0.3720**             |
-| Referable Specificity| **0.9767**        | **0.9736**             |
+| Metric       | Original Baseline | Improved Baseline | Change |
+| ------------ | ----------------- | ----------------- | ------ |
+| Accuracy     | **81.09%**        | **82.73%**        | **+1.64 pp** ✅ |
+| QWK          | **0.8959**        | **0.8972**        | **+0.0013** |
+| AUC          | **0.9841**        | **0.9820**        | -0.0021 |
+| Sensitivity  | **87.44%**        | **94.17%**        | **+6.73 pp** ✅ |
+| ECE          | **0.0478**        | **0.0377**        | **-0.0101** ✅ |
 
-> **Observation**: External drop from APTOS is present as expected under domain shift; baseline currently generalizes better than CBAM.
+**Observation**: Improved baseline showed better generalization within APTOS dataset.
 
-### 16.3. Uncertainty Metrics (Observed Patterns)
+### 16.3. Messidor-2 External Validation (N=1744)
 
-- Incorrect predictions have higher entropy than correct predictions (both models).
-- Confidence is lower for incorrect predictions (both models).
-- Higher-severity/ambiguous classes show higher entropy than grade 0.
-- Baseline shows lower average entropy and higher confidence than CBAM in current runs.
-- Calibration now quantified:
-  - Baseline: ECE **0.1338**, Brier **0.5084**
+| Metric               | Baseline (Original) | CBAM | Baseline (Improved) | Best Model |
+| -------------------- | ------------------- | ---- | ------------------- | ---------- |
+| Accuracy             | **0.6279**          | 0.6095 | 0.6244            | **Original** |
+| QWK                  | **0.6233**          | 0.5784 | **0.4582** ❌      | **Original** |
+| Binary Referable AUC | **0.8630**          | 0.8778 | 0.8602            | CBAM       |
+| Referable Sensitivity| **0.4398**          | 0.3720 | **0.3435** ❌      | **Original** |
+| Referable Specificity| **0.9744**          | 0.9736 | **0.9845**        | Improved   |
+| ECE                  | **0.1155**          | 0.1201 | **0.1601** ❌      | **Original** |
+
+**Critical Finding**: Improved baseline **catastrophically failed** on Messidor-2 despite strong APTOS performance:
+- QWK degraded by **26.5%** (0.6233 → 0.4582)
+- Mild DR recall: **92% of cases missed** (9.26% → 0.74%)
+- Severe DR recall: **halved** (56.00% → 28.00%)
+
+**Verdict**: ❌ Improvements optimized for APTOS did NOT generalize externally. **Original baseline retained as production model**.
+
+### 16.4. Per-Class Performance Summary (Messidor-2)
+
+| Grade | Baseline (Original) Recall | CBAM Recall | Improved Baseline Recall |
+| ----- | -------------------------- | ----------- | ------------------------ |
+| 0 - No DR | **0.9420** | 0.8333 | 0.9853 |
+| 1 - Mild | **0.0926** | 0.0481 | **0.0074** ❌ |
+| 2 - Moderate | **0.1614** | 0.1813 | 0.1470 |
+| 3 - Severe | **0.5600** | 0.2623 | **0.2800** ❌ |
+| 4 - Proliferative | **0.4000** | 0.5200 | 0.3714 |
+
+**Key Finding**: All models struggle with minority classes (1-3) on external data. Balanced sampling in improved model **amplified** this failure rather than fixing it.
+
+### 16.5. Uncertainty Metrics (Observed Patterns)
+
+- ✅ Incorrect predictions have higher entropy than correct predictions (validated across all models)
+- ✅ Confidence is lower for incorrect predictions (validated)
+- ✅ Higher-severity/ambiguous classes show higher entropy than Grade 0 (validated)
+- Original baseline shows lowest average entropy and highest confidence
+- **Calibration comparison** (Messidor-2):
+  - Original Baseline: ECE **0.1155**, Brier **0.5231**
   - CBAM: ECE **0.1201**, Brier **0.5170**
-- Practical reading: CBAM is slightly better on ECE, but baseline is better on Brier and all key discrimination metrics; calibration gains are not sufficient to offset lower clinical recall.
+  - Improved Baseline: ECE **0.1601** ❌, Brier **0.5645** ❌
+
+**Interpretation**: 
+- CBAM has slightly better calibration but worse discrimination
+- Improved baseline has **worse** calibration on external data despite better APTOS calibration
+- Calibration improvements do not translate to better clinical utility
+
+### 16.6. Key Lessons from Phase 7
+
+1. **Internal validation ≠ External generalization**: APTOS improvements failed catastrophically on Messidor-2
+2. **Balanced sampling can backfire**: Increased overfitting to APTOS-specific patterns
+3. **Model capacity matters**: Deeper classifier head enabled memorization of dataset artifacts
+4. **Conservative models generalize better**: Original baseline's Grade 0 bias helped external performance
+5. **Multi-dataset validation is mandatory**: Single-dataset validation insufficient for clinical AI
+
+**Final Model Selection**: **Original Baseline (20260403_120248)** retained for:
+- Better external generalization
+- More robust minority class performance
+- Lower catastrophic failure risk
+- Safer for clinical deployment
 
 ---
 

@@ -180,17 +180,6 @@ def create_model(
     pretrained: bool = True,
     classifier_hidden_dim: int = 0,
 ) -> CBAMResNet50:
-    """Factory for CBAM-ResNet50.
-
-    Args:
-        num_classes: Number of output classes.
-        dropout_rate: MC Dropout probability.
-        pretrained: Use ImageNet pretrained backbone.
-        classifier_hidden_dim: Hidden dim for deeper head (0 = original head).
-
-    Returns:
-        CBAMResNet50 instance.
-    """
     return CBAMResNet50(
         num_classes=num_classes,
         dropout_rate=dropout_rate,
@@ -273,17 +262,7 @@ def create_baseline_model(
     pretrained: bool = True,
     classifier_hidden_dim: int = 0,
 ) -> BaselineResNet50:
-    """Factory for BaselineResNet50.
 
-    Args:
-        num_classes: Number of output classes.
-        dropout_rate: MC Dropout probability.
-        pretrained: Use ImageNet pretrained backbone.
-        classifier_hidden_dim: Hidden dim for deeper head (0 = original head).
-
-    Returns:
-        BaselineResNet50 instance.
-    """
     return BaselineResNet50(
         num_classes=num_classes,
         dropout_rate=dropout_rate,

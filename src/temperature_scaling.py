@@ -1,13 +1,3 @@
-"""Post-hoc temperature scaling for probability calibration.
-
-Learns a single scalar T on APTOS validation logits such that softmax(logits/T)
-minimises NLL (equivalently, ECE). Does not change argmax predictions.
-
-Usage:
-    python temperature_scaling.py \\
-        --checkpoint "outputs/checkpoints/baseline*fold0_best.pth" \\
-        --model baseline --fold 0
-"""
 
 import argparse
 import glob
@@ -339,3 +329,15 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+"""Post-hoc temperature scaling for probability calibration.
+
+Learns a single scalar T on APTOS validation logits such that softmax(logits/T)
+minimises NLL (equivalently, ECE). Does not change argmax predictions.
+
+Usage:
+    python temperature_scaling.py \\
+        --checkpoint "outputs/checkpoints/baseline*fold0_best.pth" \\
+        --model baseline --fold 0
+"""

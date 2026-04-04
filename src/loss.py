@@ -24,13 +24,10 @@ class FocalLoss(nn.Module):
 
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         """Focal loss: CE → p_t → focal_weight → alpha → reduce.
-
         Args:
             logits: Raw model output [B, C].
             targets: Ground-truth labels [B].
-
-        Returns:
-            Scalar loss (or per-sample if reduction='none').
+        Returns: Scalar loss (or per-sample if reduction='none').
         """
         ce_loss = F.cross_entropy(
             logits, targets, reduction="none",

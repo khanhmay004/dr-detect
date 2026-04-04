@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
 """
-Compute cross-fold statistics from training history files.
-
-Supports both old naming (model_fold0_history.json) and new timestamped
-naming (model_YYYYMMDD_HHMMSS_fold0_history.json). For timestamped files,
-uses the most recent run for each fold.
-
 Usage:
     python src/compute_cross_fold_stats.py --model cbam_resnet50
     python src/compute_cross_fold_stats.py --model baseline_resnet50
