@@ -1186,12 +1186,12 @@ Setting all flags to their defaults produces the **exact same pipeline** as the 
   - [x] B9.1: Add `--classifier_hidden_dim` CLI argument
   - [x] B9.2: Pass to model creation
 
-- [ ] **B10**: CPU Smoke Tests
-  - [ ] B10.1: Run `train.py` with all improvements ON (2 epochs, batch_size=2, CPU) — must complete without error
-  - [ ] B10.2: Run `train.py` with all improvements OFF (defaults) — must produce identical behaviour to current code
-  - [ ] B10.3: Load old checkpoint with `evaluate.py --classifier_hidden_dim 0` — must work
-  - [ ] B10.4: Run `temperature_scaling.py` — must produce valid output
-  - [ ] B10.5: Run `threshold_tuning.py` — must produce valid output
+- [x] **B10**: CPU Smoke Tests
+  - [x] B10.1: Run `train.py` with all improvements ON (2 epochs, batch_size=2, CPU) — must complete without error
+  - [x] B10.2: Run `train.py` with all improvements OFF (defaults) — must produce identical behaviour to current code
+  - [x] B10.3: Load old checkpoint with `evaluate.py --classifier_hidden_dim 0` — must work
+  - [x] B10.4: Run `temperature_scaling.py` — must produce valid output
+  - [x] B10.5: Run `threshold_tuning.py` — must produce valid output
 
 - [ ] **B11**: GPU Training
   - [ ] B11.1: Upload updated code to GPU instance
