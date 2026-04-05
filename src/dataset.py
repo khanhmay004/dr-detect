@@ -351,77 +351,68 @@ def _build_standard_transform(image_size: int = IMAGE_SIZE) -> A.Compose:
 
 
 def _build_medium_transform(image_size: int = IMAGE_SIZE) -> A.Compose:
-    """Medium augmentation — for Grades 3 and 4. Adds colour-domain transforms."""
+    """Medium augmentation for Grades 3/4 — slightly less aggressive than heavy.
+
+    Same conservative philosophy as heavy transform but with lower probabilities.
+    """
     return A.Compose([
         A.Resize(image_size, image_size),
         A.HorizontalFlip(p=0.5),
         A.VerticalFlip(p=0.5),
-        A.RandomRotate90(p=0.5),
+        A.Rotate(limit=20, border_mode=cv2.BORDER_CONSTANT, p=0.4),
+        A.ColorJitter(
+            brightness=0.2, contrast=0.2, saturation=0.2, hue=0.03, p=0.4
+        ),
+        A.RandomResizedCrop(
+            size=(image_size, image_size),
+            scale=(0.8, 1.0),
+            ratio=(0.85, 1.15),
+            p=0.4,
+        ),
         A.Affine(
-            translate_percent={"x": (-0.15, 0.15), "y": (-0.15, 0.15)},
-            scale=(0.85, 1.15),
-            rotate=(-60, 60),
+            translate_percent={"x": (-0.05, 0.05), "y": (-0.05, 0.05)},
+            scale=(0.95, 1.05),
+            shear=(-5, 5),
             border_mode=cv2.BORDER_CONSTANT,
-            p=0.6,
+            p=0.4,
         ),
-        A.OneOf([
-            A.RandomBrightnessContrast(
-                brightness_limit=0.3, contrast_limit=0.3, p=1.0
-            ),
-            A.CLAHE(clip_limit=4.0, p=1.0),
-            A.RandomGamma(gamma_limit=(70, 130), p=1.0),
-        ], p=0.5),
-        A.HueSaturationValue(
-            hue_shift_limit=10, sat_shift_limit=20, val_shift_limit=20, p=0.4,
-        ),
-        A.GaussNoise(std_range=(0.04, 0.25), p=0.3),
-        A.ImageCompression(quality_range=(75, 100), p=0.2),
+        A.GaussianBlur(blur_limit=(3, 3), sigma_limit=(0.1, 1.5), p=0.2),
         A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
         ToTensorV2(),
     ])
 
 
 def _build_heavy_transform(image_size: int = IMAGE_SIZE) -> A.Compose:
-    """Heavy augmentation — for Grades 1 and 2 (worst-performing classes).
+    """Conservative augmentation for Grades 1/2 — based on published DR paper.
 
-    Aggressive pipeline targeting cross-domain invariance: elastic distortion,
-    CoarseDropout, MotionBlur, strong colour manipulation.
+    Preserves lesion structure: no elastic distortion, no coarse dropout,
+    minimal hue shift (0.05 vs previous 0.15). Designed for subtle
+    microaneurysm and hemorrhage patterns.
     """
     return A.Compose([
         A.Resize(image_size, image_size),
         A.HorizontalFlip(p=0.5),
         A.VerticalFlip(p=0.5),
-        A.RandomRotate90(p=0.5),
+        A.Rotate(limit=25, border_mode=cv2.BORDER_CONSTANT, p=0.5),
+        A.ColorJitter(
+            brightness=0.3, contrast=0.3, saturation=0.3, hue=0.05, p=0.5
+        ),
+        A.RandomResizedCrop(
+            size=(image_size, image_size),
+            scale=(0.7, 1.0),
+            ratio=(0.75, 1.33),
+            p=0.5,
+        ),
         A.Affine(
-            translate_percent={"x": (-0.15, 0.15), "y": (-0.15, 0.15)},
-            scale=(0.85, 1.15),
-            rotate=(-90, 90),
+            translate_percent={"x": (-0.05, 0.05), "y": (-0.05, 0.05)},
+            scale=(0.95, 1.05),
+            shear=(-10, 10),
             border_mode=cv2.BORDER_CONSTANT,
-            p=0.7,
+            p=0.5,
         ),
-        A.OneOf([
-            A.ElasticTransform(alpha=1.0, sigma=50.0, p=1.0),
-            A.GridDistortion(num_steps=5, distort_limit=0.3, p=1.0),
-        ], p=0.3),
-        A.OneOf([
-            A.RandomBrightnessContrast(
-                brightness_limit=0.4, contrast_limit=0.4, p=1.0
-            ),
-            A.CLAHE(clip_limit=6.0, p=1.0),
-            A.RandomGamma(gamma_limit=(60, 140), p=1.0),
-        ], p=0.6),
-        A.HueSaturationValue(
-            hue_shift_limit=15, sat_shift_limit=30, val_shift_limit=30, p=0.5,
-        ),
-        A.CoarseDropout(
-            num_holes_range=(1, 4),
-            hole_height_range=(16, 48),
-            hole_width_range=(16, 48),
-            p=0.3,
-        ),
-        A.MotionBlur(blur_limit=(3, 7), p=0.2),
-        A.GaussNoise(std_range=(0.04, 0.30), p=0.4),
-        A.ImageCompression(quality_range=(65, 95), p=0.3),
+        A.GaussianBlur(blur_limit=(3, 3), sigma_limit=(0.1, 2.0), p=0.3),
+        A.Sharpen(alpha=(0.2, 0.5), lightness=(0.5, 1.0), p=0.3),
+        A.Perspective(scale=(0.05, 0.2), p=0.3),
         A.Normalize(mean=IMAGENET_MEAN, std=IMAGENET_STD),
         ToTensorV2(),
     ])
