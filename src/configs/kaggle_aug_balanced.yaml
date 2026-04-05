@@ -1,15 +1,35 @@
-model: baseline
-epochs: 25
-batch_size: 16
-lr: 0.0001
-lr_warmup_epochs: 0
-weight_decay: 0.0001
-early_stopping_patience: 7
-label_smoothing: 0.1
+name: kaggle_run_d_aug_balanced
+description: >
+  Run D: Conservative paper-based augmentation + inverse-freq alpha.
+  Target 800/class, label smoothing 0.1, class weights enabled.
 
-use_balanced_sampler: false
+model_type: baseline
+pretrained: true
+dropout_rate: 0.5
+
+epochs: 25
+learning_rate: 0.0001
+weight_decay: 0.0001
+batch_size: 16
+grad_clip_norm: 1.0
+early_stopping_patience: 7
+
+focal_gamma: 2.0
 use_class_weights: true
+label_smoothing: 0.1
 
 use_aug_balanced_dataset: true
 aug_target_count_per_class: 800
 aug_focal_alpha_uniform: false
+
+use_balanced_sampler: false
+classifier_hidden_dim: 0
+lr_warmup_epochs: 0
+
+image_size: 512
+num_workers: 2
+
+device: cuda
+use_amp: true
+
+seed: 42
